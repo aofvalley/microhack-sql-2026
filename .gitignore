@@ -1,0 +1,27 @@
+# Build artifacts / OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+
+# IDE
+.vscode/
+.idea/
+
+# IaC state
+*.tfstate
+*.tfstate.*
+.terraform/
+.azd/
+
+# Local env / secrets
+.env
+.env.local
+*.publishsettings
+scripts/parameters.json
+scripts/users.csv
+scripts/my-users.csv
+
+# Deploy output (contains credentials — never commit)
+scripts/out/

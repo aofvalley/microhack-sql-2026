@@ -1,0 +1,13 @@
+{
+  "SubscriptionId": "<your-subscription-id>",
+  "TenantId": "<your-tenant-id>",
+  "TeamCount": 1,
+  "Location": "westeurope",
+  "ResourceGroup": "rg-sqlhack-microhack-2026",
+  "Prefix": "sqlhack",
+  "AdminUsername": "DemoUser",
+  "AdminPassword": "",
+  "DeploySQLMI": false,
+  "UsersCSV": "",
+  "AutoShutdownTime": "1900"
+}
