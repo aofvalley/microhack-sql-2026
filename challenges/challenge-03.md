@@ -1,27 +1,35 @@
-# Challenge 3 — Security on Azure SQL Managed Instance
+# Challenge 3 — Managed Instance Link migration (SQL Server 2019/2022 → Azure SQL Managed Instance)
 
-[Previous](challenge-02.md) - **[Home](../Readme.md)** - [Finish](finish.md)
+[Previous](challenge-02.md) - **[Home](../Readme.md)** - [Next Challenge](challenge-04.md)
+
+> **Owner:** _to be assigned_ — this challenge is a placeholder for the team member working on
+> the MI Link migration path. Replace this stub with the final content on your own branch.
 
 ## Goal
 
-The goal of this exercise is to understand the layered security model available when running databases on Azure SQL Managed Instance.
+The goal of this exercise is to migrate a modern on-premises SQL Server 2019/2022 database to
+Azure SQL Managed Instance using the **Managed Instance link** feature, achieving near-zero
+downtime by relying on a distributed availability group between the source SQL Server and the
+target Managed Instance.
 
 ## Actions
 
-* Perform data discovery and classification to find, label, and protect sensitive data in databases
-* Review Microsoft Defender for SQL and run Vulnerability Assessment Express where available
-* Configure Microsoft Entra ID authentication and review security alerts for anomalous activity
+* Provision (or reuse) an Azure SQL Managed Instance and validate the delegated subnet
+* Configure prerequisites on the source SQL Server: TDE certificates, availability group support,
+  endpoint, and required trace flags
+* Create the Managed Instance link from the Azure portal or PowerShell
+* Validate continuous replication, then perform a planned failover to cut over the workload
+* Connect to the migrated database on Managed Instance and validate the application path
 
 ## Success criteria
 
-* You created data classification recommendations and added at least one custom classification
-* You ran a vulnerability assessment, reviewed the findings, and created an initial baseline
-* You reviewed Microsoft Defender for SQL alerts and understood the recommended remediation steps
-* You validated Microsoft Entra ID authentication for Azure SQL Managed Instance access
+* You established a healthy MI link between the source SQL Server and Managed Instance
+* You observed replication catching up and stayed in a synchronized state
+* You executed a planned failover and confirmed the database is now writable on Managed Instance
+* You validated end-to-end connectivity from SSMS or the VS Code MSSQL extension
 
 ## Learning resources
 
-* [Security overview for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/security-overview?view=azuresql)
-* [Microsoft Defender for SQL](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-sql-introduction)
-* [SQL Vulnerability Assessment](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-vulnerability-assessment?view=azuresql)
-* [Microsoft Entra authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview?view=azuresql)
+* [Managed Instance link overview](https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-feature-overview?view=azuresql)
+* [Prepare your environment for Managed Instance link](https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-preparation?view=azuresql)
+* [Failover with Managed Instance link](https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-use-ssms-to-failover-database?view=azuresql)

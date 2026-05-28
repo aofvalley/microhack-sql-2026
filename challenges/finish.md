@@ -1,6 +1,6 @@
 # Finish
 
-[Previous](challenge-03.md) - **[Home](../Readme.md)**
+[Previous](challenge-05.md) - **[Home](../Readme.md)**
 
 ---
 
@@ -14,9 +14,12 @@ You have completed the **MicroHack — SQL Modernization (2026 edition)**.
 
 | Challenge | Topic | Key skills |
 |---|---|---|
-| [Challenge 1](challenge-01.md) | Assessment & Migration | DMS / MI Link / LRS, Azure SQL MI provisioning, database assessment |
-| [Challenge 2](challenge-02.md) | Monitoring & Performance | Query Store, Database Watcher, KQL, Azure Monitor for SQL |
-| [Challenge 3](challenge-03.md) | Security | Microsoft Defender for SQL, TDE, auditing, Azure AD auth |
+| [Challenge 0](challenge-00.md) | SQL Server access setup | Source SQL Server connectivity, sample databases, lab credentials |
+| [Challenge 1](challenge-01.md) | Assessment | Azure Migrate, SKU sizing, compatibility findings, readiness report |
+| [Challenge 2](challenge-02.md) | DMS migration (SQL 2012 → Azure SQL DB) | Azure Database Migration Service, Self-hosted IR, schema + data migration |
+| [Challenge 3](challenge-03.md) | Managed Instance Link migration | MI Link, near-zero-downtime cutover, distributed AG |
+| [Challenge 4](challenge-04.md) | Monitoring & Performance | Query Store, Database Watcher, KQL, Azure Monitor for SQL |
+| [Challenge 5](challenge-05.md) | Security & Defender | Microsoft Defender for SQL, TDE, auditing, Microsoft Entra auth |
 
 ---
 
