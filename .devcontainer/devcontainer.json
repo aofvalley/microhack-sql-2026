@@ -1,0 +1,25 @@
+{
+  "name": "microhack-sql-2026",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/powershell:1": {},
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "extensions": "azure-devops",
+      "installBicep": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "pwsh -Command \"Install-Module -Name Az -Scope CurrentUser -Force -AllowClobber; Install-Module -Name SqlServer -Scope CurrentUser -Force; Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force\" && npm install -g markdownlint-cli",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-mssql.mssql",
+        "ms-azuretools.vscode-bicep",
+        "DavidAnson.vscode-markdownlint",
+        "ms-vscode.powershell"
+      ]
+    }
+  }
+}
