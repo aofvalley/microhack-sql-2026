@@ -100,12 +100,36 @@ Report types to enable:
 
 ### 1.4 Review and export findings
 
-DMA produces three buckets:
+DMA evaluates the source against the official
+[**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
+Each finding has a **rule ID**, a **level** (`Database` or `Instance`), and a **category**
+(`Issue` for blockers or `Warning` for behavior changes).
 
-- **Migration blockers** — features not supported on Azure SQL Database (e.g. SQL Agent jobs,
-  cross-database queries without elastic queries, CLR with `EXTERNAL_ACCESS`, FileStream).
-- **Behavior changes** — features that exist but behave differently.
-- **Information** — deprecated features that still work today.
+The rules most likely to fire against a SQL Server 2012 source in this lab are:
+
+| Rule ID | Level | Category | What it means |
+|---|---|---|---|
+| `AgentJobs` | Instance | Warning | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. |
+| `ClrAssemblies` | Database | Issue | SQL CLR assemblies aren't supported on Azure SQL DB. |
+| `CrossDatabaseReferences` | Database | Issue | Cross-database queries aren't supported; use Elastic Database Query or consolidate. |
+| `LinkedServer` | Database | Issue | Linked servers aren't supported on Azure SQL DB. |
+| `DbCompatLevelLowerThan100` | Database | Warning | Compat levels below 100 aren't supported; raise on source first. |
+| `FileStream` | Database | Issue | FILESTREAM isn't supported on Azure SQL DB. |
+| `ServiceBroker` | Database | Issue | Service Broker isn't supported on Azure SQL DB. |
+| `MSDTCTransactSQL` | Database | Issue | `BEGIN DISTRIBUTED TRANSACTION` isn't supported. |
+| `XpCmdshell` | Database | Issue | `xp_cmdshell` isn't supported on Azure SQL DB. |
+| `WindowsAuthentication` | Instance | Warning | Windows-auth users aren't supported; use Microsoft Entra ID. |
+| `DatabaseMail` / `SqlMail` | Instance / Database | Warning | Not supported on Azure SQL DB. |
+| `ServerAudits` / `ServerCredentials` / `ServerScopedTriggers` | Instance | Warning | Not supported on Azure SQL DB. |
+| `TraceFlags` | Instance | Warning | Trace flags aren't supported on Azure SQL DB. |
+
+For each finding, decide:
+
+- **Fix on source before migration** (preferred for `Issue` categories).
+- **Refactor on target after migration** (acceptable for some `Warning` categories such as
+  `DbCompatLevelLowerThan100`, where you can raise the compat level after cut-over).
+- **Re-platform to a different target** (e.g. Managed Instance) if a critical `Issue` such as
+  `ClrAssemblies` or `CrossDatabaseReferences` cannot be removed.
 
 Steps:
 
@@ -115,9 +139,14 @@ Steps:
    - **Refactor on target after migration** (acceptable for deprecated features).
    - **Re-platform to a different target** (e.g. Managed Instance) if a critical blocker cannot
      be removed.
-3. Export the report: **Export report** → save as JSON and CSV next to the lab artifacts.
+Steps:
 
-> Keep the DMA report — Challenge 2 references it when you build the DMS migration project.
+1. Open each database tab and review findings per category.
+2. Export the report: **Export report** → save as JSON and CSV next to the lab artifacts.
+
+> Keep the DMA report — Challenge 2 references it when you build the DMS migration project. The
+> full rule catalogue lives in the official
+> [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
 ---
 
@@ -223,15 +252,17 @@ Expected pattern for a vanilla SQL 2012 lab:
 
 ## Step 6 — Build the remediation backlog
 
-Combine DMA and Azure Migrate findings into a single backlog. Use this table as a template:
+Combine DMA and Azure Migrate findings into a single backlog. Tag each row with the **official
+rule ID** so reviewers can trace every item back to the
+[assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
-| Finding | Source DB | Severity | Decision | Owner | Target challenge |
+| Rule ID | Source DB | Category | Decision | Owner | Target challenge |
 |---|---|---|---|---|---|
-| SQL Agent job uses xp_cmdshell | `app_billing` (SQL 2012) | Blocker | Refactor to Azure Automation runbook | DBA | Before Challenge 2 |
-| Cross-database query | `app_orders` (SQL 2012) | Blocker | Move shared table or use elastic query | App team | Before Challenge 2 |
-| Deprecated DB compatibility level 100 | `app_inventory` (SQL 2012) | Info | Raise compat level on target after migration | DBA | After Challenge 2 |
-| CLR assembly EXTERNAL_ACCESS | `WideWorldImporters` | Blocker for SQL DB, OK for MI | Stay on MI path | Architect | Confirms Challenge 3 target |
-| SQL Server 2019 trace flag 4199 | `vm-sql-source` instance | Info | Enable matching MI feature flag post-migration | DBA | After Challenge 3 |
+| `XpCmdshell` + `AgentJobs` | `app_billing` (SQL 2012) | Issue + Warning | Refactor SQL Agent job to Azure Automation runbook (no `xp_cmdshell`) | DBA | Before Challenge 2 |
+| `CrossDatabaseReferences` | `app_orders` (SQL 2012) | Issue | Consolidate the shared table into the same target DB or use Elastic Database Query | App team | Before Challenge 2 |
+| `DbCompatLevelLowerThan100` | `app_inventory` (SQL 2012) | Warning | Raise compat level on the target after migration (post-cutover task in Challenge 2) | DBA | After Challenge 2 |
+| `ClrAssemblies` | `WideWorldImporters` | Issue (for SQL DB) | Keep MI as the target — confirms Challenge 3 routing | Architect | Confirms Challenge 3 target |
+| `TraceFlags` (`TF 4199`) | `vm-sql-source` instance | Warning | Enable the equivalent setting on the MI target post-migration | DBA | After Challenge 3 |
 
 Persist this backlog as `assessment-backlog.md` (or a sheet) next to the exported assessment
 reports.
