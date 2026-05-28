@@ -1,0 +1,26 @@
+name: Feature / Content Request
+description: Suggest an improvement or new content
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Suggested priority
+      options:
+        - P0 - critical fix
+        - P1 - structural improvement
+        - P2 - nice-to-have
+    validations:
+      required: true

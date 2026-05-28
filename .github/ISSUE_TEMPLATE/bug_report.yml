@@ -1,0 +1,34 @@
+name: Bug Report
+description: Something is broken in the lab scripts or content
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! Fill in as much detail as possible so we can reproduce the issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - deploy.ps1
+        - Challenge 01
+        - Challenge 02
+        - Challenge 03
+        - Walkthrough
+        - Infrastructure / Bicep
+        - CI / GitHub Actions
+        - Other
+    validations:
+      required: true
