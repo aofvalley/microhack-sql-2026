@@ -222,22 +222,75 @@ performance data for 7–30 days for accurate right-sizing.
    (15–30 min) is enough for this lab. **Assessments stay disabled until discovery has populated the
    project.**
 
-### 2.2 Create the Azure SQL Database assessment
+10. **Confirm the discovery.** Back in the project, open **Explore inventory → Databases**. You should see
+   one **SQL Server** DB instance (`MSSQLSERVER` on `sqlvm-mh2026`) with the discovered databases counted.
+   Support status shows **Extended** (SQL Server 2019, still in extended support).
 
-1. In the Azure Migrate project, open **Assessments** → **Create assessment**.
-2. Assessment type: **Azure SQL Database**.
-3. Add the in-scope databases:
-   - `TEAM99_LocalMasterDataDB`
-   - `TEAM99_SharedMasterDatabDB`
-   - `TEAM99_TenantDataDB`
-   - `TEAM01_AdventureWorks2019`
-4. Review the sizing criteria (performance-based vs as-on-premises) and create the assessment.
+   ![Azure Migrate Databases inventory - MSSQLSERVER on sqlvm-mh2026, SQL Server, Extended support, 4 databases](../../Images/c1-step-2k-azure-migrate-databases-discovered.png)
+
+   Click the instance to see the **User databases** tab. The lab DBs appear with their **CompatLevel120**
+   (SQL Server 2014 compatibility), size and **Online** status, all sourced from the **Appliance**:
+
+   | User DB | Size (MB) | Compatibility level | Status |
+   |---|---|---|---|
+   | `TEAM99_TenantDataDB` | 208 | CompatLevel120 | Online |
+   | `TEAM99_SharedMasterDatabDB` | 3172 | CompatLevel120 | Online |
+   | `TEAM99_LocalMasterDataDB` | 272 | CompatLevel120 | Online |
+
+   ![MSSQLSERVER user databases - the three TEAM99 DBs at CompatLevel120, Online, discovered via Appliance](../../Images/c1-step-2l-azure-migrate-user-databases.png)
+
+### 2.2 Create the assessment
+
+Azure Migrate is now the **only** tooling that produces a full readiness + sizing + cost assessment for
+SQL Server, so this is the heart of Challenge 1. The flow assesses the **whole workload** (the server, its
+SQL databases and the backup file share) against the recommended Azure targets.
+
+1. On the **Databases** blade, tick **`MSSQLSERVER`** and click **+ Create assessment**.
+
+   ![Databases blade with MSSQLSERVER selected and Create assessment highlighted](../../Images/c1-step-2m-create-assessment-select.png)
+
+2. **Select workloads.** Azure Migrate expands the instance into its related workloads — keep all three
+   ticked so the assessment sizes the full estate:
+
+   | Workload | Category | Type |
+   |---|---|---|
+   | `sqlvm-mh2026` | Server | Windows Server 2022 (Physical) |
+   | `MSSQLSERVER` | Database | SQL Server |
+   | `SqlBackups` | Fileshare | Storage |
+
+   ![Select workloads - server, SQL database and SqlBackups fileshare all selected](../../Images/c1-step-2n-create-assessment-workloads.png)
+
+3. **General tab — target & pricing / assessment criteria.** Use the values below. *Performance-based*
+   sizing reads the appliance metrics (don't pick *as-on-premises* — it just mirrors the current spec):
+
+   | Setting | Value |
+   |---|---|
+   | Default target location | **France Central** (matches the Azure SQL target region) |
+   | Default environment | Production |
+   | Currency / Program | Euro (€) / Pay-As-You-Go |
+   | Default savings option | 1 year reserved as applicable |
+   | Sizing criteria | **Performance-based** |
+   | Performance history / Percentile | 1 Day / 95th |
+   | Comfort factor | 1 |
+   | Azure Hybrid Benefit (Windows + SQL) | **Yes** (bring existing licenses) |
+   | Include Microsoft Defender for cloud | Yes |
+
+   ![Create assessment General tab - France Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2o-create-assessment-general.png)
+
+4. **Review + Create assessment.** Name it (e.g. `microhacksql`) and confirm the summary. The assessment
+   type is **Application** — it evaluates the 3 workloads against **Azure SQL MI, Azure Files and Azure VM**
+   and returns recommendations + a TCO estimate for each:
+
+   ![Review + Create assessment - microhacksql, 3 workloads, target services Azure SQL MI / Azure Files / Azure VM, AHB and Defender enabled](../../Images/c1-step-2p-create-assessment-review.png)
+
+   Click **Create assessment** and wait a few minutes for it to compute.
 
 ### 2.3 Capture SKU recommendation and cost
 
-Azure Migrate returns a **recommended Azure SQL Database SKU** (service tier, vCores, storage) and a
-**monthly cost estimate** for each database. Record these next to the readiness findings — you will
-pick the target tier in Challenge 2 (remember In-Memory OLTP forces **Business Critical**).
+Azure Migrate returns a **recommended Azure SQL target SKU** (Azure SQL MI service tier, vCores, storage —
+plus the Azure VM / Azure Files sizing for the server and backup share) and a **monthly cost estimate**.
+Record these next to the readiness findings — you will pick the target tier in Challenge 2 (remember
+In-Memory OLTP forces **Business Critical**).
 
 > Keep the assessment export — Challenge 2 references it when you build the DMS migration project.
 
