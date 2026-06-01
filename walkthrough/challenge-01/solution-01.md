@@ -317,15 +317,19 @@ SQL databases and the backup file share) against the recommended Azure targets.
 >   immediately and Compute becomes non-zero; *(b, accurate)* leave it Performance-based and **wait ≥1
 >   day** (the `Performance history` you set) for the appliance to profile the VM, then **Recalculate**.
 > - **Azure SQL assessment shows `Servers/SQL instances/User databases = 0` and `Discovery success
->   0%`.** The `sqladmin` credential you added is a **Windows** credential — enough to discover the OS
->   and *see* that a SQL instance exists, but the **Azure SQL** assessment also needs to log in *to SQL*.
->   Add a second credential on the appliance: **Manage credentials → Add → SQL Server credentials**,
->   username `sqladmin`, same password (it's `sysadmin` on the instance). Wait for **SQL discovery** to
->   succeed, then **Recalculate** the Azure SQL assessment.
+>   0%`, even though discovery works.** First confirm discovery is healthy: **All inventory →
+>   `sqlvm-mh2026` → MSSQLSERVER → User databases** should list the 3 `TEAM99_*` DBs with their
+>   **Size (MB)**, **Compatibility level** and **Online** status, Discovery source = *Appliance*
+>   (reading DB size + compat level requires a working SQL connection, so if you see this, the
+>   credential is fine). If the inventory is populated but the **assessment** is empty, the assessment
+>   was simply **created before discovery finished** — just open it and **Recalculate** (or Settings →
+>   Recalculate). Only if the *inventory itself* is empty do you have a credential problem: add a
+>   **SQL Server** credential (**Manage credentials → Add → SQL Server credentials**, `sqladmin`, same
+>   password) and wait for SQL discovery before recalculating.
 >
 > For the walkthrough, focus on the richer **Application** assessment (`microhacksql`): switch its
 > sizing to *As on-premises*, recalculate, and capture the populated Readiness / Compute / cost for
-> 2.3–2.4. Add the SQL Server credential so the database-level detail also fills in.
+> 2.3–2.4. **Recalculate** the Azure SQL assessment too so the database-level detail fills in.
 
 ### 2.3 Capture SKU recommendation and cost
 
