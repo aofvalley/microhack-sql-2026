@@ -304,6 +304,29 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
    Click **Create assessment** and wait a few minutes for it to compute.
 
+> **Troubleshooting — assessment shows cost as *storage only* (Compute €0) and/or the Azure SQL
+> assessment is empty (Gotcha #3).** Right after creation you'll usually see **`Performance coverage = 0%`**
+> on the assessment list, and two distinct symptoms — both are *normal early state*, not a broken
+> assessment:
+>
+> - **"Only storage" cost / Compute €0 (Application assessment).** With **Sizing criteria =
+>   Performance-based**, Azure Migrate needs accumulated performance counters to right-size CPU/RAM.
+>   With 0% coverage it can only price the disk, so Compute shows €0 and the recommended path looks
+>   storage-dominated. **Two fixes:** *(a, fast — recommended for this lab)* open the assessment →
+>   **Settings → Sizing criteria = `As on-premises` → Recalculate**: it sizes from allocated cores/RAM
+>   immediately and Compute becomes non-zero; *(b, accurate)* leave it Performance-based and **wait ≥1
+>   day** (the `Performance history` you set) for the appliance to profile the VM, then **Recalculate**.
+> - **Azure SQL assessment shows `Servers/SQL instances/User databases = 0` and `Discovery success
+>   0%`.** The `sqladmin` credential you added is a **Windows** credential — enough to discover the OS
+>   and *see* that a SQL instance exists, but the **Azure SQL** assessment also needs to log in *to SQL*.
+>   Add a second credential on the appliance: **Manage credentials → Add → SQL Server credentials**,
+>   username `sqladmin`, same password (it's `sysadmin` on the instance). Wait for **SQL discovery** to
+>   succeed, then **Recalculate** the Azure SQL assessment.
+>
+> For the walkthrough, focus on the richer **Application** assessment (`microhacksql`): switch its
+> sizing to *As on-premises*, recalculate, and capture the populated Readiness / Compute / cost for
+> 2.3–2.4. Add the SQL Server credential so the database-level detail also fills in.
+
 ### 2.3 Capture SKU recommendation and cost
 
 Azure Migrate returns a **recommended Azure SQL target SKU** (Azure SQL MI service tier, vCores, storage —
