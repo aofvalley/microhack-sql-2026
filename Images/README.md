@@ -15,13 +15,14 @@ Server 2019 IaaS VM (`sqlvm-mh2026`) + one empty Azure SQL Database target
 
 ## In-VM / client-side (not portal-screenshotable)
 
-The assessment itself runs in **Data Migration Assistant on the VM** (a Windows desktop GUI reached
-over Bastion RDP — no DOM to automate). Document these with text + the official
+The assessment itself runs through the **Azure Migrate appliance registered on the VM** plus the
+Azure Migrate blades in the portal. Document the in-VM appliance registration with text + the
+official
 [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql):
 
-- DMA new assessment project (target = Azure SQL Database).
-- Source connect `localhost` (Windows auth) + database selection.
-- Findings review + export (JSON/CSV).
+- Azure Migrate project + discover SQL Server instances (download appliance).
+- Appliance registration on the VM, source connect `localhost` (Windows auth) + database discovery.
+- Azure SQL Database assessment: readiness findings, SKU recommendation, monthly cost.
 
 ## Deprecated / superseded images
 
