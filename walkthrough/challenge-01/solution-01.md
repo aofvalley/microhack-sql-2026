@@ -109,15 +109,36 @@ and a **monthly cost estimate** you will use in Challenge 2.
 
 ### 2.1 Create the Azure Migrate project and discover the source
 
-1. In the portal, create an **Azure Migrate** project in `rg-microhack-sql-2026` (or reuse one).
-2. Under **Migration and modernization** → **Discover**, choose to discover **SQL Server instances
-   and databases**, and download the **Azure Migrate appliance** installer.
-3. On the VM (via Bastion), run the installer, **register the appliance** with the project, and add
-   the SQL connection: server `localhost`, **Windows / integrated** auth (you are `sqladmin`, a
-   sysadmin context). Trust the server certificate.
-4. Let the appliance **discover** the instance and start collecting. In this lab a short window
+1. In the portal, open **Azure Migrate** → **Get started** → **Create project**.
+
+   ![Azure Migrate Get started landing page](../../Images/c1-step-2a-azure-migrate-get-started.png)
+
+2. Create the project in `rg-microhack-sql-2026` (or reuse one): set the **subscription**, **resource
+   group**, a **project name** (e.g. `migrate-mh2026`) and a **geography** (France).
+
+   ![Create Azure Migrate project form](../../Images/c1-step-2b-azure-migrate-create-project.png)
+
+   Once created, the project **Overview** is your hub for discovery, assessment and migration.
+
+   ![Azure Migrate project overview](../../Images/c1-step-2c-azure-migrate-overview.png)
+
+3. From the project **Overview**, click **Start discovery** and pick a discovery method. For this lab
+   use **Using appliance → For Azure** (continuous discovery, ideal for detailed SQL inventory).
+
+   ![Azure Migrate discovery methods dropdown](../../Images/c1-step-2d-azure-migrate-discovery-methods.png)
+
+4. On the **Discover** blade, set **Are your servers virtualized?** to **Physical or other (AWS, GCP,
+   Xen, etc. or if servers are Arc-enabled)**, then follow the four steps: **(1)** name the appliance
+   and **generate the project key**, **(2)** download the appliance **.zip** installer.
+
+   ![Azure Migrate Discover appliance setup form](../../Images/c1-step-2e-azure-migrate-discover-appliance.png)
+
+5. On the VM (via Bastion), run the installer, **register the appliance** with the project (paste the
+   project key), and add the SQL connection: server `localhost`, **Windows / integrated** auth (you
+   are `sqladmin`, a sysadmin context). Trust the server certificate.
+6. Let the appliance **discover** the instance and start collecting. In this lab a short window
    (15–30 min) is enough; real engagements collect performance data for 7–30 days for accurate
-   right-sizing.
+   right-sizing. **Assessments stay disabled until discovery has populated the project.**
 
 ### 2.2 Create the Azure SQL Database assessment
 

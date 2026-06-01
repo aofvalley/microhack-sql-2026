@@ -12,6 +12,16 @@ Server 2019 IaaS VM (`sqlvm-mh2026`) + one empty Azure SQL Database target
 | 02 | `c1-step-02-source-vm.png` | Source VM `sqlvm-mh2026` overview (SQL 2019, WS2022, D4s_v5) |
 | 03 | `c1-step-03-sql-target.png` | Azure SQL logical server `sqlsrvmh2026tin4vcwzqrg3k` — empty Entra-only target |
 | 04 | `c1-step-04-bastion-connect.png` | Bastion connect blade for `sqlvm-mh2026` |
+| 2a | `c1-step-2a-azure-migrate-get-started.png` | Azure Migrate **Get started** landing page |
+| 2b | `c1-step-2b-azure-migrate-create-project.png` | **Create project** form (subscription, RG, name, geography) |
+| 2c | `c1-step-2c-azure-migrate-overview.png` | Project **Overview** hub (`migrate-mh2026`) |
+| 2d | `c1-step-2d-azure-migrate-discovery-methods.png` | **Start discovery** dropdown (appliance / collector / import) |
+| 2e | `c1-step-2e-azure-migrate-discover-appliance.png` | **Discover** appliance setup form (generate key + download .zip) |
+
+> Steps 2a–2e are the genuine Azure Migrate portal flow for **2.1 (create project + discover)**,
+> captured live in `migrate-mh2026`. The readiness / SKU / cost screens (2.3–2.4) require a fully
+> registered appliance + a 15–30 min discovery window, so they are documented as text tables rather
+> than fabricated screenshots; **Assessments** stays disabled until discovery populates the project.
 
 ## In-VM / client-side (not portal-screenshotable)
 
