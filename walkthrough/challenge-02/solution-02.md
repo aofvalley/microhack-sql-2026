@@ -190,15 +190,30 @@ Endpoint** instead.
 
 ### 2.3 Create the three empty target databases
 
-Use the SKU from the Azure Migrate recommendation in Challenge 1. The values below are a
-reasonable lab default for steady-state. **`TEAM99_SharedMasterDatabDB` uses In-Memory OLTP**, so
-its target must be **Business Critical** (the only tier on Azure SQL Database that supports
-memory-optimized tables); the other two map cleanly to **General Purpose**. For the migration
+Start from the Azure Migrate recommendation in Challenge 1, then apply the In-Memory OLTP override
+below. The values are a reasonable lab default for steady-state. **`TEAM99_SharedMasterDatabDB` uses
+In-Memory OLTP**, so its target must be **Business Critical** (the only tier on Azure SQL Database
+that supports memory-optimized tables); the other two map cleanly to **General Purpose**. For the
+migration
 window itself, the official
 [migration guide](https://learn.microsoft.com/en-us/data-migration/sql-server/database/guide?view=azuresql)
 recommends temporarily scaling up to **Business Critical Gen5 8 vCore** (96 MB/s log generation
 rate) or **Hyperscale** (100 MB/s) to avoid log-rate throttling, then scaling back down after
 cut-over.
+
+> **Reconciling this with the Challenge 1 assessment.** The real Azure Migrate run in Challenge 1
+> (`microassessment26`) marked **all three `TEAM99_*` databases `Ready` for the *General Purpose*
+> tier** and suggested **Database Migration Service** as the tool — the In-Memory OLTP readiness
+> rule **did not fire** for `TEAM99_SharedMasterDatabDB`. That is a **known assessment gap**, not a
+> green light: the database physically contains **2 memory-optimized tables** (restored from
+> WideWorldImporters), and on Azure SQL Database memory-optimized tables exist **only in the
+> Business Critical tier**
+> ([In-Memory OLTP availability](https://learn.microsoft.com/en-us/azure/azure-sql/database/in-memory-oltp-overview?view=azuresql)).
+> Provisioning this database as General Purpose makes the **schema deployment of the memory-optimized
+> tables fail** during the DMS migration. So for the migration we **override the assessment** and
+> provision `TEAM99_SharedMasterDatabDB` as **Business Critical**. The supported alternative is to
+> convert the 2 memory-optimized tables to disk-based tables on the source first, which would let all
+> three databases land on General Purpose — out of scope for this lab.
 
 Create each database from the portal (**Create a resource → SQL Database**, or the logical
 server's **+ Create database**):
