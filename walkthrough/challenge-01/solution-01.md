@@ -13,12 +13,13 @@ Per the official
 [**SQL Server → Azure SQL Database migration guidance**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/overview?view=azuresql#migration-tools),
 this 2026 edition uses **Azure Migrate** for the assessment (readiness, migration blockers/warnings,
 SKU recommendation and monthly cost) and **Azure Database Migration Service (DMS)** for the migration
-in Challenge 2.
+in Challenge 2. A lighter, in-tool alternative — the **SQL Server hybrid and migration component built
+into SSMS 21/22** — is offered as a secondary path for the readiness assessment.
 
 | Original lab choice | 2026 replacement | Why |
 |---|---|---|
 | Azure Data Studio + SQL Migration extension | **Azure Migrate (Azure SQL assessment)** | ADS retired (28-Feb-2026). Azure Migrate is the current Microsoft-recommended assessment tool and produces the readiness + rule-mapped findings, plus SKU and cost. |
-| Data Migration Assistant (DMA) | **Azure Migrate** | DMA is **retired (16-Jul-2025)** and can no longer be downloaded; its readiness assessment is superseded by Azure Migrate. |
+| Data Migration Assistant (DMA) | **Azure Migrate** (primary) **/ SSMS migration component** (secondary) | DMA is **retired (16-Jul-2025)** and can no longer be downloaded. Its readiness assessment is superseded by Azure Migrate; the **hybrid and migration component in SSMS 21/22** carries the in-tool, DMA-style local readiness assessment. |
 | Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
 | Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Managed Instance, no fleet. |
 
@@ -160,6 +161,31 @@ will pick the target tier in Challenge 2 (remember In-Memory OLTP forces **Busin
 > Keep the assessment export — Challenge 2 references it when you build the DMS migration project.
 > The full rule catalogue is in the official
 > [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
+
+### 2.5 (Secondary) Run the assessment from the SSMS migration component
+
+If you are already connected with **SSMS 21 / 22**, you don't need the Azure Migrate appliance for the
+readiness check: the **SQL Server hybrid and migration component** (the in-tool successor to DMA) runs
+a local readiness assessment directly against the instance. It's the fastest way to get the same
+rule-mapped findings, although it does **not** produce the Azure Migrate SKU + cost sizing — for that,
+still run the Azure Migrate assessment in 2.1–2.4.
+
+1. In SSMS, right-click the instance (or use the **Migration** landing page) → open **Migrate SQL
+   Server to Azure**.
+2. Under **Step 1 of 4 — Migration readiness assessment**, choose **Run readiness assessment**.
+3. Target: **Azure SQL Database**. Select the in-scope databases
+   (`TEAM99_LocalMasterDataDB`, `TEAM99_SharedMasterDatabDB`, `TEAM99_TenantDataDB`,
+   `TEAM01_AdventureWorks2019`) and run it.
+4. Review the readiness results — they map to the **same official rule catalogue** as Step 2.3
+   (In-Memory OLTP tier-gating in `TEAM99_SharedMasterDatabDB`, compat-level warnings, instance-level
+   `WindowsAuthentication`, etc.). Use **View assessment history** to revisit prior runs.
+
+> The same SSMS panel also exposes an **Upgrade Assessment** ("Migrate to higher version of SQL
+> Server") for in-place SQL Server version upgrades — out of scope here, but handy to know it lives in
+> the same place.
+>
+> Reference:
+> [Assess and upgrade with the SSMS migration component](https://techcommunity.microsoft.com/blog/microsoftdatamigration/assess-and-upgrade-to-sql-server-2025-with-ssms-migration-component/4470652).
 
 ---
 
