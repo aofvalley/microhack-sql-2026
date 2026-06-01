@@ -6,8 +6,7 @@
 
 The original SQL Modernization MicroHack used **Azure Data Studio (ADS)** with the **Azure SQL
 Migration extension** to assess and size in one flow. ADS was retired on **28-Feb-2026** and the
-extension is deprecated. The **Data Migration Assistant (DMA)** that earlier editions fell back on
-is **also retired (16-Jul-2025)** and is no longer available to download.
+extension is deprecated, so the assessment tooling has moved into SSMS and Azure Migrate.
 
 Per the official
 [**SQL Server → Azure SQL Database migration guidance**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/overview?view=azuresql#migration-tools),
@@ -19,7 +18,7 @@ Microsoft recommends **two** tools, and they do **different** jobs:
   monthly cost. It uses a lightweight **appliance**.
 
 For this **single-server** lab the assessment is fastest from the **SQL Server hybrid and migration
-component built into SSMS 21/22** (the in-tool successor to DMA): it connects directly to the instance,
+component built into SSMS 21/22**: it connects directly to the instance,
 no appliance, and produces the same rule-mapped readiness result. Azure Migrate is offered as the
 **optional at-scale path** that additionally gives the SKU + cost sizing. DMS then does the migration in
 Challenge 2.
@@ -27,7 +26,6 @@ Challenge 2.
 | Original lab choice | 2026 replacement | Why |
 |---|---|---|
 | Azure Data Studio + SQL Migration extension | **SSMS 21/22 migration component** (primary) **+ Azure Migrate** (at-scale, optional) | ADS retired (28-Feb-2026). The SSMS component gives the rule-mapped readiness directly against the instance; Azure Migrate adds SKU + cost when you need fleet-scale sizing. |
-| Data Migration Assistant (DMA) | **SSMS migration component** | DMA is **retired (16-Jul-2025)** and can no longer be downloaded. The **hybrid and migration component in SSMS 21/22** carries the in-tool, DMA-style local readiness assessment. |
 | Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
 | Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Managed Instance, no fleet. |
 
@@ -112,8 +110,8 @@ the VM (to run SSMS there, or to deploy the appliance) — no public RDP port re
 ## Step 2 — Readiness assessment with the SSMS migration component (primary)
 
 For a **single source instance** like this lab you do **not** need the Azure Migrate appliance to get
-the readiness result. **SSMS 21 / 22** ships the **SQL Server hybrid and migration component** (the
-in-tool successor to the retired DMA) which connects **directly** to the instance and runs the
+the readiness result. **SSMS 21 / 22** ships the **SQL Server hybrid and migration component** which
+connects **directly** to the instance and runs the
 readiness assessment against the official
 [**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 It is the fastest path to the rule-mapped **readiness** result (blockers + warnings). It does **not**
