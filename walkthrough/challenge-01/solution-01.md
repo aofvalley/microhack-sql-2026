@@ -208,10 +208,29 @@ performance data for 7–30 days for accurate right-sizing.
    | IP address / FQDN | the VM **private IP**, e.g. `10.0.1.4` (VM → Networking) |
 
    Save and wait ~1 minute. The row must reach **Status: Validation successful** (✓), with the WinRM
-   ports `5985/5986` shown. If it stays in error, it's one of: credential isn't a local admin, or WinRM
-   isn't running (run the snippet in 9a).
+   ports `5985/5986` shown. If it stays in error, it's one of: credential isn't a local admin, WinRM
+   isn't running (run the snippet in 9a), or the **local-account WinRM gotcha** below.
 
    ![Manage credentials and discovery sources - sqladmin Windows credential mapped, VM at 10.0.1.4, Validation successful](../../Images/c1-step-2j-appliance-credentials-discovery-source.png)
+
+   > **Troubleshooting — `WinRM error 0x8009030d` / "A specified logon session does not exist"
+   > (Gotcha #2).** With a **local** account (`sqladmin`), WinRM/Negotiate falls back to Kerberos —
+   > and *"Kerberos accepts domain user names, but not local user names"* — so validation fails with
+   > `errorcode 0x8009030d` even though the network path is fine (an IPv4 *auth* failure, not a
+   > connectivity one; the `fe80::…` IPv6 line in the error is harmless noise). Fix it on the VM in an
+   > **elevated** PowerShell, then **re-enter the password** in the appliance credential and revalidate:
+   > ```powershell
+   > # The key fix: let LOCAL admins get a full token over remote WinRM (resolves 0x8009030d)
+   > New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' `
+   >   -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWord -Force
+   > # The appliance runs on the VM itself -> trust its own IP + loopback
+   > Set-Item WSMan:\localhost\Client\TrustedHosts -Value '10.0.1.4,localhost,127.0.0.1' -Force
+   > Set-Item WSMan:\localhost\Service\Auth\Negotiate -Value $true
+   > Restart-Service WinRM
+   > ```
+   > A stale stored password (e.g. after a VM restart) throws the same *"logon session does not exist"* —
+   > so always re-type the password in **Manage credentials** and confirm the account is active
+   > (`net user sqladmin`). Enter the username as plain `sqladmin` (no `domain\` or `.\`).
 
    **9c — Add the SQL credential (for the database assessment).** The Windows credential validates the
    *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. Add one
