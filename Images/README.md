@@ -17,6 +17,9 @@ Server 2019 IaaS VM (`sqlvm-mh2026`) + one empty Azure SQL Database target
 | 2c | `c1-step-2c-azure-migrate-overview.png` | Project **Overview** hub (`migrate-mh2026`) |
 | 2d | `c1-step-2d-azure-migrate-discovery-methods.png` | **Start discovery** dropdown (appliance / collector / import) |
 | 2e | `c1-step-2e-azure-migrate-discover-appliance.png` | **Discover** appliance setup form (generate key + download .zip) |
+| 2f | `c1-step-2f-azure-migrate-project-key.png` | Appliance **project key generated** + download .zip (appliance `migrationsq`) |
+| 2g | `c1-step-2g-appliance-installer-files.png` | Extracted **AzureMigrateInstaller** file set on the VM |
+| 2h | `c1-step-2h-appliance-scenario-select.png` | Installer PowerShell **scenario prompt** → choose `3` Physical |
 
 > Steps 2a–2e are the genuine Azure Migrate portal flow for **2.1 (create project + discover)**,
 > captured live in `migrate-mh2026`. The readiness / SKU / cost screens (2.3–2.4) require a fully
