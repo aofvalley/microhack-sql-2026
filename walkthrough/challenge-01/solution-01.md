@@ -11,22 +11,31 @@ is **also retired (16-Jul-2025)** and is no longer available to download.
 
 Per the official
 [**SQL Server → Azure SQL Database migration guidance**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/overview?view=azuresql#migration-tools),
-this 2026 edition uses **Azure Migrate** for the assessment (readiness, migration blockers/warnings,
-SKU recommendation and monthly cost) and **Azure Database Migration Service (DMS)** for the migration
-in Challenge 2. A lighter, in-tool alternative — the **SQL Server hybrid and migration component built
-into SSMS 21/22** — is offered as a secondary path for the readiness assessment.
+Microsoft recommends **two** tools, and they do **different** jobs:
+
+- **Azure Database Migration Service (DMS)** — the fully managed service that performs the **migration**
+  with minimal downtime (Challenge 2).
+- **Azure Migrate** — discovers and **assesses a SQL estate at scale**, adding a SKU recommendation and
+  monthly cost. It uses a lightweight **appliance**.
+
+For this **single-server** lab the assessment is fastest from the **SQL Server hybrid and migration
+component built into SSMS 21/22** (the in-tool successor to DMA): it connects directly to the instance,
+no appliance, and produces the same rule-mapped readiness result. Azure Migrate is offered as the
+**optional at-scale path** that additionally gives the SKU + cost sizing. DMS then does the migration in
+Challenge 2.
 
 | Original lab choice | 2026 replacement | Why |
 |---|---|---|
-| Azure Data Studio + SQL Migration extension | **Azure Migrate (Azure SQL assessment)** | ADS retired (28-Feb-2026). Azure Migrate is the current Microsoft-recommended assessment tool and produces the readiness + rule-mapped findings, plus SKU and cost. |
-| Data Migration Assistant (DMA) | **Azure Migrate** (primary) **/ SSMS migration component** (secondary) | DMA is **retired (16-Jul-2025)** and can no longer be downloaded. Its readiness assessment is superseded by Azure Migrate; the **hybrid and migration component in SSMS 21/22** carries the in-tool, DMA-style local readiness assessment. |
+| Azure Data Studio + SQL Migration extension | **SSMS 21/22 migration component** (primary) **+ Azure Migrate** (at-scale, optional) | ADS retired (28-Feb-2026). The SSMS component gives the rule-mapped readiness directly against the instance; Azure Migrate adds SKU + cost when you need fleet-scale sizing. |
+| Data Migration Assistant (DMA) | **SSMS migration component** | DMA is **retired (16-Jul-2025)** and can no longer be downloaded. The **hybrid and migration component in SSMS 21/22** carries the in-tool, DMA-style local readiness assessment. |
 | Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
 | Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Managed Instance, no fleet. |
 
 > **Scope of this walkthrough.** Challenge 1 (assessment) and Challenge 2 (DMS migration) run
-> against **one** SQL Server 2019 IaaS VM and **one** empty Azure SQL Database target. Azure Migrate
-> uses a lightweight appliance on the source VM; in this lab a short discovery window is enough — you
-> do **not** need the multi-day performance collection used in real engagements.
+> against **one** SQL Server 2019 IaaS VM and **one** empty Azure SQL Database target. The primary
+> assessment runs **in SSMS** with no appliance; the optional Azure Migrate path uses a lightweight
+> appliance and a short discovery window — you do **not** need the multi-day performance collection
+> used in real engagements.
 
 ## Lab architecture for this challenge
 
@@ -65,13 +74,14 @@ challenges:
 ## Prerequisites
 
 - Challenge 0 complete: the lab resource group is deployed and you can reach the VM.
-- Azure subscription with read access to the resource group and permission to use Bastion and to
-  create an **Azure Migrate** project.
-- Tools (installed **on the source VM**, where discovery runs):
-  - **Azure Migrate appliance** (lightweight installer, downloaded from the Azure Migrate project)
-  - **SSMS 20+** (optional, to eyeball the databases)
+- Azure subscription with read access to the resource group and permission to use Bastion (and, for
+  the optional at-scale path, to create an **Azure Migrate** project).
+- Tools:
+  - **SSMS 21 / 22** with the **SQL Server hybrid and migration component** — the primary assessment
+    tool (connects directly to the instance, no appliance).
+  - **Azure Migrate appliance** (lightweight installer) — only for the optional at-scale path in Step 3.
 - SQL Server admin rights on the source instance (the `sqladmin` Windows account is a sysadmin
-  context on the VM), used by the appliance to read SQL metadata.
+  context on the VM), used to read SQL metadata.
 
 Sign in to Azure if you want to inspect resources from CLI:
 
@@ -84,9 +94,9 @@ az account set --subscription "<subscription-id>"
 
 ## Step 1 — Connect to the source VM with Bastion
 
-All assessment tooling runs **from Azure** (the Azure Migrate appliance sits **on the VM**). Use
-**Azure Bastion** for a secure, browser-based RDP session to deploy and register the appliance — no
-public RDP port required.
+The primary assessment runs from **SSMS** connected to the source instance; the optional Azure Migrate
+appliance sits **on the VM**. Use **Azure Bastion** for a secure, browser-based RDP session to reach
+the VM (to run SSMS there, or to deploy the appliance) — no public RDP port required.
 
 1. Open the VM `sqlvm-mh2026` → **Connect** → **Bastion**.
 2. Confirm **Using Bastion: bastion-mh2026** shows **Provisioning State: Succeeded**.
@@ -99,15 +109,75 @@ public RDP port required.
 
 ---
 
-## Step 2 — Azure Migrate assessment against Azure SQL Database
+## Step 2 — Readiness assessment with the SSMS migration component (primary)
 
-Azure Migrate discovers the source SQL Server instance and evaluates its databases against the
-official
-[**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql),
-producing a **readiness** result (with migration blockers and warnings), a **SKU recommendation**,
-and a **monthly cost estimate** you will use in Challenge 2.
+For a **single source instance** like this lab you do **not** need the Azure Migrate appliance to get
+the readiness result. **SSMS 21 / 22** ships the **SQL Server hybrid and migration component** (the
+in-tool successor to the retired DMA) which connects **directly** to the instance and runs the
+readiness assessment against the official
+[**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
+It is the fastest path to the rule-mapped **readiness** result (blockers + warnings). It does **not**
+produce the Azure Migrate **SKU + monthly cost** sizing — for that, run the optional at-scale path in
+Step 3.
 
-### 2.1 Create the Azure Migrate project and discover the source
+### 2.1 Open the migration component in SSMS
+
+1. Connect to the source instance with **SSMS 21 / 22** (over Bastion on the VM, or from your
+   workstation if 1433 is reachable).
+2. Right-click the instance (or use the **Migration** landing page) → **Azure Migration** → **Migrate
+   SQL Server to Azure**.
+
+### 2.2 Run the readiness assessment
+
+1. Under **Step 1 of 4 — Migration readiness assessment**, choose **Run readiness assessment**.
+2. Target: **Azure SQL Database**.
+3. Select the in-scope databases and run it:
+   - `TEAM99_LocalMasterDataDB`
+   - `TEAM99_SharedMasterDatabDB`
+   - `TEAM99_TenantDataDB`
+   - `TEAM01_AdventureWorks2019`
+4. Use **View assessment history** to revisit prior runs.
+
+> The same SSMS panel also exposes an **Upgrade Assessment** ("Migrate to higher version of SQL
+> Server") for in-place SQL Server version upgrades — out of scope here, but handy to know it lives in
+> the same place.
+> Reference:
+> [Assess and upgrade with the SSMS migration component](https://techcommunity.microsoft.com/blog/microsoftdatamigration/assess-and-upgrade-to-sql-server-2025-with-ssms-migration-component/4470652).
+
+### 2.3 Review readiness findings
+
+The component reports each database as **Ready**, **Ready with conditions**, or **Not ready**, and
+maps each issue to the official rule catalogue (a **migration blocker** or a **warning**). The same
+result comes out of the Azure Migrate assessment in Step 3 — both tools share the rule engine. For
+these sample databases the realistic findings are:
+
+| Rule / finding | Severity | Applies to | What it means / decision |
+|---|---|---|---|
+| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | `TEAM99_SharedMasterDatabDB` (WideWorldImporters) | In-Memory OLTP is only available on Azure SQL Database **Business Critical / Premium** tiers — *not* General Purpose. Either choose a BC/Premium target tier, or drop/convert the memory-optimized tables before migrating to General Purpose. |
+| **Compatibility level below current default** | Warning | All four DBs (110/120) | Supported, but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once you've validated behaviour. |
+| `AgentJobs` | Warning (instance) | Instance | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. (Fires only if you've created Agent jobs.) |
+| `WindowsAuthentication` | Warning (instance) | Instance | Windows-auth logins aren't supported; the target uses **Microsoft Entra ID**. |
+| `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Blocker | (none expected) | Hard blockers on Azure SQL DB. The stock AdventureWorks / WideWorldImporters / DW samples don't use them, so they should **not** fire here — but this is exactly the catalogue you check against on a real customer database. |
+
+For every finding decide:
+
+- **Fix on source before migration** (preferred for blockers).
+- **Refactor on target after migration** (acceptable for some warnings, e.g. raising the compat
+  level post-cutover).
+- **Choose a different target tier** when a feature is tier-gated (e.g. pick Business Critical to
+  keep In-Memory OLTP).
+
+---
+
+## Step 3 — (At scale, optional) Azure Migrate appliance assessment + SKU & cost
+
+Use **Azure Migrate** when you need to **discover and assess a fleet at scale** (many VMs) and when
+you want the **SKU recommendation + monthly cost** sizing that the SSMS component does not produce. It
+relies on a lightweight **appliance** deployed on the source network. For this single-server lab it is
+**optional** — the readiness result is already covered in Step 2; run this only to add the sizing or to
+practise the at-scale flow.
+
+### 3.1 Create the Azure Migrate project and discover the source
 
 1. In the portal, open **Azure Migrate** → **Get started** → **Create project**.
 
@@ -133,14 +203,37 @@ and a **monthly cost estimate** you will use in Challenge 2.
 
    ![Azure Migrate Discover appliance setup form](../../Images/c1-step-2e-azure-migrate-discover-appliance.png)
 
-5. On the VM (via Bastion), run the installer, **register the appliance** with the project (paste the
-   project key), and add the SQL connection: server `localhost`, **Windows / integrated** auth (you
-   are `sqladmin`, a sysadmin context). Trust the server certificate.
-6. Let the appliance **discover** the instance and start collecting. In this lab a short window
-   (15–30 min) is enough; real engagements collect performance data for 7–30 days for accurate
-   right-sizing. **Assessments stay disabled until discovery has populated the project.**
+5. **Generate the project key and download the appliance.** Name the appliance (e.g. `migrationsq`)
+   and click **Generate key**. Wait for *"All resources have been created successfully"* and copy the
+   **project key** — you'll paste it into the appliance configuration manager later. Then under
+   **Download Azure Migrate appliance**, download the **.zip** (≈500 MB) installer.
 
-### 2.2 Create the Azure SQL Database assessment
+   ![Azure Migrate project key generated and appliance download](../../Images/c1-step-2f-azure-migrate-project-key.png)
+
+6. **Install the appliance on the VM (via Bastion).** Copy the .zip to `sqlvm-mh2026`, extract it,
+   and you'll see the installer set — `AzureMigrateInstaller`, `AzureConnectedMachineAgent`,
+   `Dra.Setup.Windows`, etc.
+
+   ![Extracted Azure Migrate installer files](../../Images/c1-step-2g-appliance-installer-files.png)
+
+7. **Run the installer and answer the prompts.** Open an elevated **PowerShell** (Run as
+   Administrator) and run `AzureMigrateInstaller.ps1`. It validates the host (PowerShell version,
+   64-bit, OS, no conflicting ASR components), then asks three questions in sequence:
+   **scenario → `3` Physical or other (AWS, GCP, Xen, etc.)**, **cloud → `1` Azure Public**, and
+   **connectivity → `1` default (public endpoint)**. Confirm with **`Y`** to start the deployment (it
+   first removes any previously installed agents — this can take 2–3 minutes).
+
+   ![Azure Migrate installer prompts - scenario 3 Physical, Azure Public, public endpoint](../../Images/c1-step-2h-appliance-scenario-select.png)
+
+8. **Register the appliance and connect the source.** When the installer finishes it opens the
+   appliance **configuration manager** in the browser: paste the **project key**, sign in, and add the
+   SQL connection — server `localhost`, **Windows / integrated** auth (you are `sqladmin`, a sysadmin
+   context). Trust the server certificate.
+9. **Discover and collect.** Let the appliance **discover** the instance and start collecting. In this
+   lab a short window (15–30 min) is enough; real engagements collect performance data for 7–30 days
+   for accurate right-sizing. **Assessments stay disabled until discovery has populated the project.**
+
+### 3.2 Create the Azure SQL Database assessment
 
 1. In the Azure Migrate project, open **Assessments** → **Create assessment**.
 2. Assessment type: **Azure SQL Database**.
@@ -151,29 +244,10 @@ and a **monthly cost estimate** you will use in Challenge 2.
    - `TEAM01_AdventureWorks2019`
 4. Review the sizing criteria (performance-based vs as-on-premises) and create the assessment.
 
-### 2.3 Review readiness findings
+The **readiness** findings match the rule catalogue already reviewed in **Step 2.3** — both tools share
+the assessment engine. Azure Migrate adds the SKU + cost sizing below.
 
-Azure Migrate reports each database as **Ready**, **Ready with conditions**, or **Not ready**, and
-maps each issue to the same official rule catalogue (a **migration blocker** or a **warning**). For
-these sample databases the realistic findings are:
-
-| Rule / finding | Severity | Applies to | What it means / decision |
-|---|---|---|---|
-| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | `TEAM99_SharedMasterDatabDB` (WideWorldImporters) | In-Memory OLTP is only available on Azure SQL Database **Business Critical / Premium** tiers — *not* General Purpose. Either choose a BC/Premium target tier, or drop/convert the memory-optimized tables before migrating to General Purpose. |
-| **Compatibility level below current default** | Warning | All four DBs (110/120) | Supported, but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once you've validated behaviour. |
-| `AgentJobs` | Warning (instance) | Instance | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. (Fires only if you've created Agent jobs.) |
-| `WindowsAuthentication` | Warning (instance) | Instance | Windows-auth logins aren't supported; the target uses **Microsoft Entra ID**. |
-| `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Blocker | (none expected) | Hard blockers on Azure SQL DB. The stock AdventureWorks / WideWorldImporters / DW samples don't use them, so they should **not** fire here — but this is exactly the catalogue you check against on a real customer database. |
-
-For every finding decide:
-
-- **Fix on source before migration** (preferred for blockers).
-- **Refactor on target after migration** (acceptable for some warnings, e.g. raising the compat
-  level post-cutover).
-- **Choose a different target tier** when a feature is tier-gated (e.g. pick Business Critical to
-  keep In-Memory OLTP).
-
-### 2.4 Capture SKU recommendation and cost
+### 3.3 Capture SKU recommendation and cost
 
 Azure Migrate also returns a **recommended Azure SQL Database SKU** (service tier, vCores, storage)
 and a **monthly cost estimate** for each database. Record these next to the readiness findings — you
@@ -183,34 +257,9 @@ will pick the target tier in Challenge 2 (remember In-Memory OLTP forces **Busin
 > The full rule catalogue is in the official
 > [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
-### 2.5 (Secondary) Run the assessment from the SSMS migration component
-
-If you are already connected with **SSMS 21 / 22**, you don't need the Azure Migrate appliance for the
-readiness check: the **SQL Server hybrid and migration component** (the in-tool successor to DMA) runs
-a local readiness assessment directly against the instance. It's the fastest way to get the same
-rule-mapped findings, although it does **not** produce the Azure Migrate SKU + cost sizing — for that,
-still run the Azure Migrate assessment in 2.1–2.4.
-
-1. In SSMS, right-click the instance (or use the **Migration** landing page) → open **Migrate SQL
-   Server to Azure**.
-2. Under **Step 1 of 4 — Migration readiness assessment**, choose **Run readiness assessment**.
-3. Target: **Azure SQL Database**. Select the in-scope databases
-   (`TEAM99_LocalMasterDataDB`, `TEAM99_SharedMasterDatabDB`, `TEAM99_TenantDataDB`,
-   `TEAM01_AdventureWorks2019`) and run it.
-4. Review the readiness results — they map to the **same official rule catalogue** as Step 2.3
-   (In-Memory OLTP tier-gating in `TEAM99_SharedMasterDatabDB`, compat-level warnings, instance-level
-   `WindowsAuthentication`, etc.). Use **View assessment history** to revisit prior runs.
-
-> The same SSMS panel also exposes an **Upgrade Assessment** ("Migrate to higher version of SQL
-> Server") for in-place SQL Server version upgrades — out of scope here, but handy to know it lives in
-> the same place.
->
-> Reference:
-> [Assess and upgrade with the SSMS migration component](https://techcommunity.microsoft.com/blog/microsoftdatamigration/assess-and-upgrade-to-sql-server-2025-with-ssms-migration-component/4470652).
-
 ---
 
-## Step 3 — Review the migration target
+## Step 4 — Review the migration target
 
 Challenge 2 migrates a source database into the empty Azure SQL logical server already deployed in
 the resource group. Note its properties now so the migration step is smooth:
@@ -227,9 +276,9 @@ the resource group. Note its properties now so the migration step is smooth:
 
 ---
 
-## Step 4 — Build the remediation backlog
+## Step 5 — Build the remediation backlog
 
-Turn the Azure Migrate readiness findings into a prioritized backlog. Tag each row with the
+Turn the readiness findings into a prioritized backlog. Tag each row with the
 **official rule name** so reviewers can trace every item back to the
 [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
@@ -245,7 +294,7 @@ assessment.
 
 ---
 
-## Step 5 — (Optional) Command-line assessment without the appliance
+## Step 6 — (Optional) Command-line assessment without the appliance
 
 If you don't want to deploy the Azure Migrate appliance, you can run an assessment from the command
 line with the **`Az.DataMigration` PowerShell module / `az datamigration` Azure CLI**, which uses the
@@ -261,12 +310,12 @@ SKU/cost sizing that Azure Migrate adds):
 
 ## Success criteria checklist
 
-- [ ] You connected to `sqlvm-mh2026` (Bastion or RDP) and registered the Azure Migrate appliance.
-- [ ] Azure Migrate **Azure SQL Database** assessment produced for the in-scope databases, with
-      findings mapped to official rule IDs.
+- [ ] You connected to `sqlvm-mh2026` (Bastion or RDP) and ran the **SSMS migration component**
+      readiness assessment for the in-scope databases, with findings mapped to official rule IDs.
 - [ ] Tier-impacting finding (In-Memory OLTP in `TEAM99_SharedMasterDatabDB`) identified and a target
       decision recorded.
-- [ ] SKU recommendation and monthly cost estimate captured per database.
+- [ ] *(Optional, at scale)* Azure Migrate **Azure SQL Database** assessment run and **SKU
+      recommendation + monthly cost** captured per database.
 - [ ] Prioritized remediation backlog written (fix-before vs fix-after Challenge 2).
 - [ ] Assessment report exported and stored with the lab artifacts.
 
