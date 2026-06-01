@@ -268,16 +268,16 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
    ![Databases blade with MSSQLSERVER selected and Create assessment highlighted](../../Images/c1-step-2m-create-assessment-select.png)
 
-2. **Select workloads.** Azure Migrate expands the instance into its related workloads — keep all three
-   ticked so the assessment sizes the full estate:
+2. **Basics tab — name the assessment and confirm the workloads.** Give it a name (e.g.
+   `microassessment26`) and keep the workloads Azure Migrate expanded from the instance selection — the
+   SQL Server **instance** plus its **host server** — so it sizes the full estate:
 
    | Workload | Category | Type |
    |---|---|---|
-   | `sqlvm-mh2026` | Server | Windows Server 2022 (Physical) |
+   | `sqlvm-mh2026` | Server | Windows Server 2022 |
    | `MSSQLSERVER` | Database | SQL Server |
-   | `SqlBackups` | Fileshare | Storage |
 
-   ![Select workloads - server, SQL database and SqlBackups fileshare all selected](../../Images/c1-step-2n-create-assessment-workloads.png)
+   ![Create assessment Basics tab - name microassessment26 with the SQL instance and host server workloads selected](../../Images/c1-step-2q-create-assessment-basics.png)
 
 3. **General tab — target & pricing / assessment criteria.** Use the values below. *Performance-based*
    sizing reads the appliance metrics (don't pick *as-on-premises* — it just mirrors the current spec):
@@ -294,13 +294,13 @@ SQL databases and the backup file share) against the recommended Azure targets.
    | Azure Hybrid Benefit (Windows + SQL) | **Yes** (bring existing licenses) |
    | Include Microsoft Defender for cloud | Yes |
 
-   ![Create assessment General tab - France Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2o-create-assessment-general.png)
+   ![Create assessment General tab - France Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2r-create-assessment-general.png)
 
-4. **Review + Create assessment.** Name it (e.g. `microhacksql`) and confirm the summary. The assessment
-   type is **Application** — it evaluates the 3 workloads against **Azure SQL MI, Azure Files and Azure VM**
-   and returns recommendations + a TCO estimate for each:
+4. **Review + Create assessment.** Confirm the summary and click **Create assessment**. The assessment
+   evaluates the workloads against the recommended Azure SQL targets — **Azure SQL MI**, **Azure SQL
+   Database** and **SQL Server on Azure VM** — and returns a readiness + sizing + TCO estimate for each:
 
-   ![Review + Create assessment - microhacksql, 3 workloads, target services Azure SQL MI / Azure Files / Azure VM, AHB and Defender enabled](../../Images/c1-step-2p-create-assessment-review.png)
+   ![Review + Create assessment - target services Azure SQL MI / Azure SQL Database / SQL Server on Azure VM, AHB and Defender enabled](../../Images/c1-step-2p-create-assessment-review.png)
 
    Click **Create assessment** and wait a few minutes for it to compute.
 
@@ -327,33 +327,63 @@ SQL databases and the backup file share) against the recommended Azure targets.
 >   **SQL Server** credential (**Manage credentials → Add → SQL Server credentials**, `sqladmin`, same
 >   password) and wait for SQL discovery before recalculating.
 >
-> For the walkthrough, focus on the richer **Application** assessment (`microhacksql`): switch its
-> sizing to *As on-premises*, recalculate, and capture the populated Readiness / Compute / cost for
-> 2.3–2.4. **Recalculate** the Azure SQL assessment too so the database-level detail fills in.
+> For the walkthrough, **Recalculate** the `microassessment26` assessment so the populated Readiness /
+> Compute / cost fill in — that is exactly how the real results captured in 2.3–2.4 below were produced.
 
 ### 2.3 Capture SKU recommendation and cost
 
-Azure Migrate returns a **recommended Azure SQL target SKU** (Azure SQL MI service tier, vCores, storage —
-plus the Azure VM / Azure Files sizing for the server and backup share) and a **monthly cost estimate**.
-Record these next to the readiness findings — you will pick the target tier in Challenge 2 (remember
-In-Memory OLTP forces **Business Critical**).
+The recalculated `microassessment26` (France Central, Azure Hybrid Benefit + Defender) now reports
+**Discovery success 100%** and a full readiness + sizing + cost result. The **Overview** lists 1 server,
+1 SQL instance and 3 user databases, and recommends the modernization path to **Azure SQL Managed
+Instance** at **€323.40/mo**:
 
-> Keep the assessment export — Challenge 2 references it when you build the DMS migration project.
+![Assessment overview - microassessment26, 100% discovery, 1 server / 1 SQL instance / 3 databases, recommended path Azure SQL MI, €323.40/mo](../../Images/c1-step-2s-assessment-overview-results.png)
+
+Open each target tab to read the recommended SKU and monthly cost:
+
+| Target | Strategy | Readiness | Recommended SKU | Monthly cost (€) |
+|---|---|---|---|---|
+| **Azure SQL Managed Instance** (recommended path) | Replatform | **Ready** | 1 instance | **323.40** (Compute 310.50 + Storage 0 + Security 12.90) |
+| **Azure SQL Database** (per-DB) | Replatform | **Ready** (3/3) | GeneralPurpose, Provisioned, Gen5, **2 vCores** | **480.50** (Compute 465.75 + Storage 1.85 + Security 12.90) |
+
+![Azure SQL MI tab - source 1 SQL instance to target 1 Azure SQL MI, Replatform, Ready, €323.40/mo](../../Images/c1-step-2t-assessment-azure-sql-mi.png)
+
+Azure SQL MI is the cheapest fully-managed target here (**€323.40/mo**) because it consolidates the three
+databases onto one shared instance; the Azure SQL Database path prices each database on its own General
+Purpose compute (≈**€160.17/DB → €480.50/mo**). Both are valid — Challenge 2 migrates to **Azure SQL
+Database** to keep the lab simple. Keep the assessment export; Challenge 2 references it when you build the
+DMS migration project.
 
 ### 2.4 Review readiness findings
 
-The assessment reports each database as **Ready**, **Ready with conditions**, or **Not ready**, and
-maps each issue to the official rule catalogue (a **migration blocker** or a **warning**). The SSMS
-readiness alternative in Step 3 shares the same rule engine, so these findings apply to both. For these
-sample databases the realistic findings are:
+The assessment reports each database as **Ready**, **Ready with conditions**, or **Not ready**, and maps
+each issue to the official rule catalogue (a **migration blocker** or a **warning**). Drilling into
+**Databases → Azure SQL Database** shows all **3 of 3 TEAM99 databases as `Ready`** (0 ready-with-conditions,
+0 not-ready) for the **GeneralPurpose, Provisioned, Gen5** target, with support status **Extended**:
 
-| Rule / finding | Severity | Applies to | What it means / decision |
-|---|---|---|---|
-| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | `TEAM99_SharedMasterDatabDB` (WideWorldImporters) | In-Memory OLTP is only available on Azure SQL Database **Business Critical / Premium** tiers — *not* General Purpose. Either choose a BC/Premium target tier, or drop/convert the memory-optimized tables before migrating to General Purpose. |
-| **Compatibility level below current default** | Warning | All four DBs (110/120) | Supported, but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once you've validated behaviour. |
-| `AgentJobs` | Warning (instance) | Instance | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. (Fires only if you've created Agent jobs.) |
-| `WindowsAuthentication` | Warning (instance) | Instance | Windows-auth logins aren't supported; the target uses **Microsoft Entra ID**. |
-| `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Blocker | (none expected) | Hard blockers on Azure SQL DB. The stock AdventureWorks / WideWorldImporters / DW samples don't use them, so they should **not** fire here — but this is exactly the catalogue you check against on a real customer database. |
+![Databases to Azure SQL Database - 3 of 3 ready, GeneralPurpose Gen5 2 vCores, €480.50/mo](../../Images/c1-step-2u-databases-to-azure-sql-db.png)
+
+| Database | Readiness | Recommended target | Support status | Recommended config | Monthly cost (€) |
+|---|---|---|---|---|---|
+| `TEAM99_LocalMasterDataDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
+| `TEAM99_SharedMasterDatabDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 3 GB | 160.17 |
+| `TEAM99_TenantDataDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
+
+The **Suggested migration tool** column points at **Database Migration Service** for every database — Azure
+Migrate hands you straight into the Challenge 2 workflow:
+
+![Per-database table - Suggested migration tool = Database Migration Service for all three DBs](../../Images/c1-step-2v-suggested-migration-tool-dms.png)
+
+**No blockers fired on these samples** — all three came back `Ready` for General Purpose, so the In-Memory
+OLTP / cross-database / CLR rules below are the catalogue you *check against*, not findings you have to
+remediate here. Keep them in mind for a real customer database:
+
+| Rule / finding | Severity | What it means / decision |
+|---|---|---|
+| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | Only on Azure SQL Database **Business Critical / Premium** (not General Purpose). If it fired you'd pick a BC/Premium tier or drop/convert the memory-optimized tables. *Did not fire here.* |
+| **Compatibility level below current default** | Warning | DBs at CompatLevel120 are supported but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once validated. |
+| `AgentJobs` / `WindowsAuthentication` | Warning (instance) | Agent jobs → Elastic Jobs / Azure Automation; Windows-auth logins → **Microsoft Entra ID** on the target. |
+| `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Blocker | Hard blockers on Azure SQL DB. The stock samples don't use them, so they **didn't fire** — but this is the catalogue you validate on real databases. |
 
 For every finding decide:
 
