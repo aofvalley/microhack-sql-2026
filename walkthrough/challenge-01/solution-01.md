@@ -173,11 +173,54 @@ performance data for 7–30 days for accurate right-sizing.
 
    ![Azure Migrate appliance configuration manager - prerequisites and project-key registration](../../Images/c1-step-2i-appliance-prerequisites-registration.png)
 
-9. **Add the source and discover.** Below registration, under **Manage credentials and discovery
-   sources**, add the SQL connection — server `localhost`, **Windows / integrated** auth (you are
-   `sqladmin`, a sysadmin context) — and trust the server certificate. Let the appliance **discover**
-   the instance and start collecting. A short window (15–30 min) is enough for this lab.
-   **Assessments stay disabled until discovery has populated the project.**
+9. **Add credentials and the discovery source.** Below registration, the appliance opens **Manage
+   credentials and discovery sources**. This is the step that trips people up, so follow it carefully.
+
+   **9a — Add the Windows credential (Step 1 on the page).** Click **Add credentials → Windows Server**.
+   The username here is a **local Windows account on the VM, *not* a SQL login** — use the same
+   `sqladmin` account you log in to Bastion with (it is already a local Administrator, which WMI/WinRM
+   discovery requires). Enter it **without** a `domain\` prefix.
+
+   | Field | Value |
+   |---|---|
+   | Source type | **Windows Server** |
+   | Friendly name | `SQLServerOnPrem` |
+   | Username | `sqladmin`  *(local account, no `domain\`)* |
+   | Password | *the VM password* |
+
+   > **Gotcha (the #1 validation failure):** a *SQL Server login* will **not** work here — Azure Migrate
+   > authenticates to the OS over WMI/WinRM, so it needs a **local Windows Administrator**. Reuse the
+   > Bastion account (`sqladmin`); don't create a separate account. If WinRM isn't already enabled on
+   > the VM, run this once in an elevated PowerShell on `sqlvm-mh2026`:
+   > ```powershell
+   > Enable-PSRemoting -Force
+   > winrm quickconfig -quiet
+   > ```
+
+   **9b — Add the discovery source (Step 2 on the page).** Leave the *enforce-HTTPS* slider **off** (it
+   falls back to HTTP if the cert prerequisites aren't met — fine for the lab). Click **Add discovery
+   source** and add the VM itself (the appliance discovers the host it runs on):
+
+   | Field | Value |
+   |---|---|
+   | Source type | **Windows Server** |
+   | Mapped credentials | **SQLServerOnPrem** |
+   | IP address / FQDN | the VM **private IP**, e.g. `10.0.1.4` (VM → Networking) |
+
+   Save and wait ~1 minute. The row must reach **Status: Validation successful** (✓), with the WinRM
+   ports `5985/5986` shown. If it stays in error, it's one of: credential isn't a local admin, or WinRM
+   isn't running (run the snippet in 9a).
+
+   ![Manage credentials and discovery sources - sqladmin Windows credential mapped, VM at 10.0.1.4, Validation successful](../../Images/c1-step-2j-appliance-credentials-discovery-source.png)
+
+   **9c — Add the SQL credential (for the database assessment).** The Windows credential validates the
+   *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. Add one
+   in the appliance's SQL credentials section — Windows-integrated (`sqladmin`, already `sysadmin`) or
+   SQL auth (`sqladmin`). Without it the host is discovered but the databases are not.
+
+   **9d — Discover.** Let the appliance **discover** the instance and start collecting. A short window
+   (15–30 min) is enough for this lab. **Assessments stay disabled until discovery has populated the
+   project.**
 
 ### 2.2 Create the Azure SQL Database assessment
 
