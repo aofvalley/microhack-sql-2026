@@ -22,7 +22,7 @@ SQL Database.
 | Original lab choice | 2026 replacement | Why it changed |
 |---|---|---|
 | ADS + Azure SQL Migration extension | **Azure Database Migration Service** (driven from the Azure portal) | ADS is retired; DMS is the underlying service and remains supported. |
-| Implicit runtime managed by ADS | DMS connects to the source **directly** over the integration runtime | For this lab the source VM is reachable from DMS, so no separate runtime host is set up. If your source is isolated, register a [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service) instead. |
+| Implicit runtime managed by ADS | DMS connects through a **self-hosted integration runtime (SHIR)** | For the **Azure SQL Database** target the portal **disables the scenario until a SHIR is connected** — even when the source is an Azure VM. You register one in Step 3.2 (download installer + paste auth key; no CLI). See [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service). |
 | SQL Server 2019/2022 source | **SQL Server 2019** source (the Challenge 1 IaaS VM) | Same source instance assessed in Challenge 1 — one IaaS VM, no fleet. |
 | Two sample databases (`AdventureWorks2019`, `WideWorldImporters`) | **Three `TEAM99_*` databases** (`TEAM99_LocalMasterDataDB`, `TEAM99_SharedMasterDatabDB`, `TEAM99_TenantDataDB`) | The exact databases restored on the lab VM and assessed in Challenge 1. |
 | Target Azure SQL Managed Instance | **Azure SQL Database** (single databases on one logical server) | Matches the empty Entra-only logical server already deployed for this lab. |
@@ -34,10 +34,10 @@ SQL Database.
 ## Lab architecture for this challenge
 
 ```
-+----------------------------+      TDS (direct)     +---------------------------+
++----------------------------+      via SHIR        +---------------------------+
 |  sqlvm-mh2026              |  <----------------->  |  Azure Database           |
 |  (SQL Server 2019 Dev)     |                       |  Migration Service        |
-|                            |                       |  (dms-mh2026)             |
+|                            |                       |  (microhacksqlmigration)  |
 |  TEAM99_LocalMasterDataDB  |                       +-------------+-------------+
 |  TEAM99_SharedMasterDatabDB|                                     |
 |  TEAM99_TenantDataDB       |                                     v
@@ -60,9 +60,9 @@ SQL Database.
 - Target logical server: `sqlsrvmh2026tin4vcwzqrg3k.database.windows.net` (**Microsoft Entra-only auth**)
 - Target databases (created empty before migration): `TEAM99_LocalMasterDataDB`,
   `TEAM99_SharedMasterDatabDB` (**Business Critical** — In-Memory OLTP), `TEAM99_TenantDataDB`
-- DMS instance: `dms-mh2026`
-- Connectivity: DMS reaches the source VM `sqlvm-mh2026` **directly** (no separate runtime host
-  for this lab). Isolated sources would register a [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service) instead.
+- DMS instance: `microhacksqlmigration`
+- Connectivity: DMS reaches the source through a **self-hosted integration runtime (SHIR)** — the
+  Azure SQL Database scenario requires it (registered in Step 3.2 from the portal; no CLI).
 
 ## Prerequisites
 
@@ -131,9 +131,10 @@ ALTER SERVER ROLE ##MS_LoginManager##      ADD MEMBER [dms-migrator@MngEnvMCAP87
   - **SSMS 21+**
   - **VS Code** + MSSQL extension
   - **SqlPackage** (latest) — only if you choose the schema-first alternative in Annex D
-- Network: DMS must be able to reach the SQL Server 2019 instance on TCP 1433. For this lab the
-  source is an Azure VM reachable from DMS directly; isolated sources register a
-  [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service) instead.
+- Network: DMS must be able to reach the SQL Server 2019 instance on TCP 1433 **through a
+  self-hosted integration runtime** — required by the Azure SQL Database scenario (registered in
+  Step 3.2). See
+  [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service).
 
 Sign in to the [Azure portal](https://portal.azure.com) with an account that has Contributor on
 `rg-microhack-sql-2026` and is the Microsoft Entra admin (or a member) on the target logical server.
@@ -235,22 +236,50 @@ create a DMS instance. Following the official tutorial:
    - **Target server type**: Azure SQL Database
    - **Migration option**: Database Migration Service
    - Select **Create**.
-3. In **Create Data Migration Service**:
+
+   ![Select migration scenario — SQL Server to Azure SQL Database](../../Images/c2-dms-01-select-scenario.png)
+
+3. In **Create Data Migration Service** (Basics):
    - Subscription: lab subscription
    - Resource group: `rg-microhack-sql-2026`
-   - Database Migration Service name: `dms-mh2026`
-   - Location: `francecentral`
+   - Database Migration Service name: `microhacksqlmigration`
+   - Location: `France Central`
    - **Review + Create**.
 
-### 3.2 Source connectivity (direct)
+   ![Create Data Migration Service — Basics](../../Images/c2-dms-02-create-basics.png)
 
-For this lab the source VM `sqlvm-mh2026` is an Azure VM reachable from DMS, so the migration
-wizard connects to it **directly** — there is **no separate integration runtime to install**. If
-your source were on-premises or in an isolated network, you would instead register a
-**Self-hosted Integration Runtime** on a host in the source network and paste its authentication
-key into the DMS **Integration runtime** blade. See
-[Tutorial: migrate SQL Server to Azure SQL Database (offline)](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service)
-for the SHIR path.
+4. After deployment, the DMS **Overview** is your hub for the migration. Note the **integration
+   runtime State = not registered** — you'll register one in the next substep, because the Azure SQL
+   Database scenario requires it.
+
+   ![DMS overview — microhacksqlmigration](../../Images/c2-dms-03-overview.png)
+
+### 3.2 Register the self-hosted integration runtime
+
+> **Reality check (from the portal):** for the **SQL Server → Azure SQL Database** scenario the
+> migration wizard is **disabled until a self-hosted integration runtime (SHIR) is connected** — even
+> when the source is an Azure VM. This is a hard portal prerequisite for this target, so we register a
+> SHIR here. It stays **lean and portal-driven**: download the installer, paste an auth key — **no CLI**.
+
+1. Start a new migration (Step 4.1). In **Select new migration scenario** the portal shows a red
+   warning: *"This scenario is currently disabled and requires a self-hosted integration runtime to
+   access the migration source and target servers."* The prerequisites list includes **"Install, set
+   up and configure Self-hosted Integration Runtime"**.
+
+   ![New migration scenario disabled — SHIR required](../../Images/c2-dms-04-new-migration-shir-required.png)
+
+2. Open **Configure integration runtime**. On a host that can reach the source instance (the source
+   VM `sqlvm-mh2026` itself is fine for this lab):
+   - **Download and install** the self-hosted integration runtime from the link on the blade.
+   - Back in the portal, copy **Key 1** (or Key 2) and paste it into the Microsoft Integration Runtime
+     Configuration Manager on the host to register it.
+   - Wait until the runtime reports **Running / registered**.
+
+   ![Configure integration runtime — download link and authentication keys](../../Images/c2-dms-05-configure-integration-runtime.png)
+
+> Once the SHIR is **registered and running**, the migration scenario unlocks and the wizard in Step 4
+> proceeds. Reference:
+> [Tutorial: migrate SQL Server to Azure SQL Database (offline)](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service).
 
 ---
 
@@ -261,7 +290,7 @@ the **DMS instance** blade. The wizard is the same in both entry points.
 
 ### 4.1 Start a new migration
 
-1. In the Azure portal, open the DMS instance `dms-mh2026` (or the target database
+1. In the Azure portal, open the DMS instance `microhacksqlmigration` (or the target database
    `TEAM99_LocalMasterDataDB`) and select **New migration**.
 2. In **Select new migration scenario**, set:
    - **Source server type**: SQL Server
@@ -276,7 +305,7 @@ The **Azure SQL Database Offline Migration Wizard** opens.
 | Field | Value |
 |---|---|
 | Source SQL Server | `sqlvm-mh2026` |
-| Integration runtime | Default — DMS connects to the Azure VM source directly (see Step 3.2) |
+| Integration runtime | The **self-hosted integration runtime** registered in Step 3.2 (State = Running) |
 
 Select **Next: Connect to source SQL Server**.
 
@@ -438,8 +467,9 @@ any that do):
 - [ ] Three empty target databases created with the recommended SKU (`TEAM99_SharedMasterDatabDB`
       as Business Critical — In-Memory OLTP)
 - [ ] `Microsoft.DataMigration` provider registered (auto with the first DMS instance)
-- [ ] DMS instance `dms-mh2026` created via the **Select migration scenario** wizard
-- [ ] DMS connectivity to the source validated (direct connection from the Azure VM source)
+- [ ] DMS instance `microhacksqlmigration` created via the **Select migration scenario** wizard
+- [ ] DMS connectivity to the source validated through the **self-hosted integration runtime**
+      (State = Running)
 - [ ] DMS offline migration completed for the three databases with **Migrate Missing Schema**
       enabled; status = **Succeeded**
 - [ ] Row counts match between source and target
