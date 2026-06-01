@@ -5,285 +5,229 @@
 ## What changed since the original
 
 The original SQL Modernization MicroHack used **Azure Data Studio (ADS)** with the **Azure SQL
-Migration extension** to perform assessment and SKU recommendation in a single flow. ADS was
-retired on **28-Feb-2026** and the extension is deprecated. This 2026 edition replaces that flow
-with two Microsoft-supported tools:
+Migration extension** to assess and size in one flow. ADS was retired on **28-Feb-2026** and the
+extension is deprecated. This 2026 edition uses **Data Migration Assistant (DMA)** — the
+Microsoft-supported, lightweight assessment tool for **SQL Server → Azure SQL Database**.
 
-| Original lab choice | 2026 replacement | Why it changed |
+| Original lab choice | 2026 replacement | Why |
 |---|---|---|
-| Azure Data Studio + SQL Migration extension assessment | **Data Migration Assistant (DMA)** for SQL → Azure SQL DB compatibility | DMA is still supported for Azure SQL DB assessments and produces a familiar findings report. |
-| ADS performance collection and SKU recommendation | **Azure Migrate SQL assessment** | Azure Migrate provides discovery, readiness, right-sizing, and cost estimation at scale. |
-| One assessment target (MI) | Two assessments — **Azure SQL DB** (for the SQL 2012 source) and **Azure SQL MI** (for the SQL 2019/2022 source) | Different sources require different targets in this edition. |
-| Assessment merged with migration in one wizard | Assessment is now its own challenge | Splitting assessment from migration mirrors real customer engagements. |
+| Azure Data Studio + SQL Migration extension | **Data Migration Assistant (DMA)** | Still supported for Azure SQL DB assessments; produces a familiar rule-mapped findings report. |
+| Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
+| Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Azure Migrate appliance, no Managed Instance. |
+
+> **Scope of this walkthrough.** Challenge 1 (assessment) and Challenge 2 (DMS migration) run
+> against **one** SQL Server 2019 IaaS VM and **one** empty Azure SQL Database target. The
+> appliance-based Azure Migrate SKU/cost flow is documented as an **optional** add-on at the end —
+> it is not required to complete the challenge.
 
 ## Lab architecture for this challenge
 
-This challenge runs **before** any migration. The Azure Migrate appliance lives on the lab
-network and reaches both source SQL Server instances. DMA runs locally on the JumpBox against the
-SQL Server 2012 source. No Azure SQL target resources are required yet.
+Everything lives in one resource group, `rg-microhack-sql-2026`. The source SQL Server runs on an
+IaaS VM; the empty Azure SQL logical server is the migration target you will fill in Challenge 2.
 
-**Components used here**
+![Resource group rg-microhack-sql-2026 — all lab resources](../../Images/c1-step-01-resource-group.png)
 
-- Resource group: `rg-microhack-sql-2026`
-- Region: `westeurope`
-- Source 1 (legacy): `vm-sql-2012` running SQL Server 2012 with three application databases
-  (referred to in this lab as `app_orders`, `app_inventory`, `app_billing` — confirm the actual
-  names in your tenant during Challenge 0)
-- Source 2 (modern): `vm-sql-source` running SQL Server 2019/2022 with `AdventureWorks2019` and
-  `WideWorldImporters`
-- Azure Migrate project: `migrate-microhack-sql-2026`
-- Azure Migrate appliance VM: `vm-migrate-appliance`
-- DMA workstation: the lab JumpBox
+| Component | Name | Notes |
+|---|---|---|
+| Resource group | `rg-microhack-sql-2026` | West Europe |
+| Source VM | `sqlvm-mh2026` | SQL Server 2019 Developer on Windows Server 2022, `Standard_D4s_v5` |
+| Source NSG | `nsg-mh2026` | RDP 3389 from your client IP only; 1433 intra-VNet |
+| VNet / subnet | `vnet-mh2026` / `snet-sql` | `10.0.0.0/16` / `10.0.1.0/24` |
+| Bastion | `bastion-mh2026` | Secure browser RDP to the VM (no public RDP needed) |
+| **Migration target** | `sqlsrvmh2026tin4vcwzqrg3k` | Azure SQL logical server, **France Central**, **Entra-only auth** (empty until Challenge 2) |
+
+### The source instance
+
+`sqlvm-mh2026` runs SQL Server 2019 with a set of restored sample databases used for both
+challenges:
+
+![sqlvm-mh2026 — virtual machine overview](../../Images/c1-step-02-source-vm.png)
+
+| Database | Based on | Compat level | Why it's interesting for assessment |
+|---|---|---|---|
+| `TEAM99_LocalMasterDataDB` | AdventureWorks2019 (OLTP) | 120 (SQL 2014) | Classic OLTP schema; clean baseline. |
+| `TEAM99_SharedMasterDatabDB` | WideWorldImporters (OLTP) | 120 (SQL 2014) | Uses **In-Memory OLTP (memory-optimized tables)** — a real tier-impacting finding. |
+| `TEAM99_TenantDataDB` | AdventureWorksDW2019 (data warehouse) | 120 (SQL 2014) | Star schema + columnstore. |
+| `TEAM01_AdventureWorks2019` | AdventureWorks2019 (OLTP) | 110 (SQL 2008 R2) | Intentionally low compat level to surface a compatibility advisory. |
+
+> The databases sit at **compat 110/120**, below the current Azure SQL Database default. Both are
+> *supported* on Azure SQL Database, so this is an **advisory** (raise the compat level post-migration),
+> not a blocker — DMA will flag it accordingly.
 
 ## Prerequisites
 
-- Challenge 0 complete: you can reach both source SQL Server instances from the JumpBox.
-- Azure subscription with permission to create Azure Migrate projects, deploy the appliance, and
-  read SQL Server metadata.
-- Tools on the JumpBox or admin workstation:
+- Challenge 0 complete: the lab resource group is deployed and you can reach the VM.
+- Azure subscription with read access to the resource group and permission to use Bastion.
+- Tools (installed **on the source VM**, where the assessment runs):
   - **Data Migration Assistant** (latest)
-  - **Azure CLI 2.60+**
-  - **Az PowerShell 11+**
-  - **SSMS 20+**
-  - **VS Code** with the MSSQL extension
-- SQL Server credentials with at least sysadmin-equivalent assessment rights on both source
-  instances.
+  - **SSMS 20+** (optional, to eyeball the databases)
+- SQL Server admin rights on the source instance (the `sqladmin` Windows account is a sysadmin
+  context on the VM).
 
-Sign in:
+Sign in to Azure if you want to inspect resources from CLI:
 
 ```bash
 az login --tenant <tenant-id>
 az account set --subscription "<subscription-id>"
 ```
 
-```powershell
-Connect-AzAccount -Tenant "<tenant-id>"
-Set-AzContext -Subscription "<subscription-id>"
-```
+---
+
+## Step 1 — Connect to the source VM with Bastion
+
+All assessment tooling (DMA) runs **on the VM**. Use **Azure Bastion** for a secure, browser-based
+RDP session — no public RDP port required.
+
+1. Open the VM `sqlvm-mh2026` → **Connect** → **Bastion**.
+2. Confirm **Using Bastion: bastion-mh2026** shows **Provisioning State: Succeeded**.
+3. Authentication type **VM Password**, enter the VM username/password, then **Connect**.
+
+![Bastion connect blade for sqlvm-mh2026](../../Images/c1-step-04-bastion-connect.png)
+
+> **Alternative:** if your client IP is allowed on `nsg-mh2026`, you can RDP directly with
+> `mstsc /v:<vm-public-ip>`. Bastion is preferred because it needs no inbound RDP from the internet.
 
 ---
 
-## Step 1 — DMA assessment for the SQL Server 2012 source
+## Step 2 — DMA assessment against Azure SQL Database
 
-DMA is the right tool to assess SQL Server 2012 databases against Azure SQL Database. It
-produces feature parity, compatibility, and breaking-change findings that you will use in
-Challenge 2 to plan the DMS migration.
+DMA evaluates the source databases against the official
+[**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql)
+and produces feature-parity and compatibility findings you will use in Challenge 2.
 
-### 1.1 Install and launch DMA
+### 2.1 Install and launch DMA
 
-1. On the JumpBox, download and install the latest [Data Migration Assistant](https://www.microsoft.com/en-us/download/details.aspx?id=53595).
+1. On the VM, download and install the latest
+   [Data Migration Assistant](https://www.microsoft.com/en-us/download/details.aspx?id=53595)
+   (if the in-VM download is blocked, fetch the MSI on your laptop and paste it over the Bastion
+   clipboard / drive redirection).
 2. Launch DMA and select **New** (`+`) → **Assessment**.
 
-### 1.2 Configure the assessment project
-
-Use these settings for the SQL 2012 → Azure SQL Database scenario:
+### 2.2 Configure the assessment project
 
 | Setting | Value |
 |---|---|
 | Project type | Assessment |
 | Source server type | SQL Server |
-| Target server type | Azure SQL Database |
-| Project name | `microhack-sql2012-to-azuresqldb` |
+| Target server type | **Azure SQL Database** |
+| Project name | `microhack-assessment` |
 
 Report types to enable:
 
 - **Check database compatibility**
 - **Check feature parity**
 
-### 1.3 Connect to the SQL Server 2012 source
+### 2.3 Connect to the source and select databases
 
-1. Provide the SQL 2012 host name (for example `vm-sql-2012.contoso.local,1433`) and SQL
-   authentication credentials captured in Challenge 0.
-2. Select the three application databases (`app_orders`, `app_inventory`, `app_billing` — use the
-   real names from Challenge 0).
-3. Start the assessment.
+1. Server: `localhost` — **Windows Authentication** (you are `sqladmin`, a sysadmin context).
+   Set **Trust server certificate = Yes**.
+2. Select the databases in scope:
+   - `TEAM99_LocalMasterDataDB`
+   - `TEAM99_SharedMasterDatabDB`
+   - `TEAM99_TenantDataDB`
+   - `TEAM01_AdventureWorks2019`
+3. **Start assessment**.
 
-### 1.4 Review and export findings
+### 2.4 Review and export findings
 
-DMA evaluates the source against the official
-[**assessment rules for SQL Server → Azure SQL Database**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 Each finding has a **rule ID**, a **level** (`Database` or `Instance`), and a **category**
-(`Issue` for blockers or `Warning` for behavior changes).
+(`Issue` for blockers, `Warning` for behaviour changes). For these sample databases the realistic
+findings are:
 
-The rules most likely to fire against a SQL Server 2012 source in this lab are:
+| Rule / finding | Level | Category | Applies to | What it means / decision |
+|---|---|---|---|---|
+| **Memory-optimized tables (In-Memory OLTP)** | Database | Issue | `TEAM99_SharedMasterDatabDB` (WideWorldImporters) | In-Memory OLTP is only available on Azure SQL Database **Business Critical / Premium** tiers — *not* General Purpose. Either choose a BC/Premium target tier, or drop/convert the memory-optimized tables before migrating to General Purpose. |
+| **Compatibility level below current default** | Database | Warning | All four DBs (110/120) | Supported, but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once you've validated behaviour. |
+| `AgentJobs` | Instance | Warning | Instance | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. (Fires only if you've created Agent jobs.) |
+| `WindowsAuthentication` | Instance | Warning | Instance | Windows-auth logins aren't supported; the target uses **Microsoft Entra ID**. |
+| `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Database | Issue | (none expected) | Hard blockers on Azure SQL DB. The stock AdventureWorks / WideWorldImporters / DW samples don't use them, so they should **not** fire here — but this is exactly the catalogue you check against on a real customer database. |
 
-| Rule ID | Level | Category | What it means |
-|---|---|---|---|
-| `AgentJobs` | Instance | Warning | SQL Server Agent jobs aren't available in Azure SQL DB; move to Elastic Jobs or Azure Automation. |
-| `ClrAssemblies` | Database | Issue | SQL CLR assemblies aren't supported on Azure SQL DB. |
-| `CrossDatabaseReferences` | Database | Issue | Cross-database queries aren't supported; use Elastic Database Query or consolidate. |
-| `LinkedServer` | Database | Issue | Linked servers aren't supported on Azure SQL DB. |
-| `DbCompatLevelLowerThan100` | Database | Warning | Compat levels below 100 aren't supported; raise on source first. |
-| `FileStream` | Database | Issue | FILESTREAM isn't supported on Azure SQL DB. |
-| `ServiceBroker` | Database | Issue | Service Broker isn't supported on Azure SQL DB. |
-| `MSDTCTransactSQL` | Database | Issue | `BEGIN DISTRIBUTED TRANSACTION` isn't supported. |
-| `XpCmdshell` | Database | Issue | `xp_cmdshell` isn't supported on Azure SQL DB. |
-| `WindowsAuthentication` | Instance | Warning | Windows-auth users aren't supported; use Microsoft Entra ID. |
-| `DatabaseMail` / `SqlMail` | Instance / Database | Warning | Not supported on Azure SQL DB. |
-| `ServerAudits` / `ServerCredentials` / `ServerScopedTriggers` | Instance | Warning | Not supported on Azure SQL DB. |
-| `TraceFlags` | Instance | Warning | Trace flags aren't supported on Azure SQL DB. |
+For every finding decide:
 
-For each finding, decide:
+- **Fix on source before migration** (preferred for `Issue` blockers).
+- **Refactor on target after migration** (acceptable for some `Warning` items, e.g. raising the
+  compat level post-cutover).
+- **Choose a different target tier** when a feature is tier-gated (e.g. pick Business Critical to
+  keep In-Memory OLTP).
 
-- **Fix on source before migration** (preferred for `Issue` categories).
-- **Refactor on target after migration** (acceptable for some `Warning` categories such as
-  `DbCompatLevelLowerThan100`, where you can raise the compat level after cut-over).
-- **Re-platform to a different target** (e.g. Managed Instance) if a critical `Issue` such as
-  `ClrAssemblies` or `CrossDatabaseReferences` cannot be removed.
-
-Steps:
-
-1. Open each database tab and review findings per bucket.
-2. For each blocker, decide:
-   - **Fix on source before migration** (preferred for breaking changes).
-   - **Refactor on target after migration** (acceptable for deprecated features).
-   - **Re-platform to a different target** (e.g. Managed Instance) if a critical blocker cannot
-     be removed.
-Steps:
+Then:
 
 1. Open each database tab and review findings per category.
-2. Export the report: **Export report** → save as JSON and CSV next to the lab artifacts.
+2. **Export report** → save as JSON and CSV next to your lab artifacts.
 
-> Keep the DMA report — Challenge 2 references it when you build the DMS migration project. The
-> full rule catalogue lives in the official
+> Keep the DMA report — Challenge 2 references it when you build the DMS migration project. The full
+> rule catalogue is in the official
 > [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
 ---
 
-## Step 2 — Create the Azure Migrate project
+## Step 3 — Review the migration target
 
-Azure Migrate replaces the ADS SKU recommendation experience and handles **both** source
-profiles in a single project.
+Challenge 2 migrates a source database into the empty Azure SQL logical server already deployed in
+the resource group. Note its properties now so the migration step is smooth:
 
-1. In the Azure portal, search for **Azure Migrate** and open the hub.
-2. Select **Create project**.
-3. Configure:
-   - Subscription: lab subscription
-   - Resource group: `rg-microhack-sql-2026`
-   - Project name: `migrate-microhack-sql-2026`
-   - Geography: Europe
+![Azure SQL logical server sqlsrvmh2026tin4vcwzqrg3k — overview](../../Images/c1-step-03-sql-target.png)
 
-CLI helper for automation runs:
-
-```bash
-az migrate project create \
-  --resource-group rg-microhack-sql-2026 \
-  --name migrate-microhack-sql-2026 \
-  --location westeurope
-```
+| Property | Value | Why it matters for Challenge 2 |
+|---|---|---|
+| Server name | `sqlsrvmh2026tin4vcwzqrg3k.database.windows.net` | Target FQDN for DMS. |
+| Location | France Central | Provision DMS in/near this region. |
+| Authentication | **Microsoft Entra-only** | **Key gotcha:** you cannot create a SQL login. DMS must connect to the target with **Microsoft Entra** auth, and the migration principal needs the `##MS_*##` server roles (see Challenge 2). |
+| Entra admin | `admin@MngEnvMCAP872561.onmicrosoft.com` | The identity used to grant the migration principal. |
+| Databases | none yet | The target is empty — Challenge 2 creates the destination database and migrates into it. |
 
 ---
 
-## Step 3 — Deploy the Azure Migrate appliance
+## Step 4 — Build the remediation backlog
 
-The appliance discovers SQL Server inventory, configuration, and performance counters from both
-the SQL 2012 and SQL 2019/2022 instances.
-
-1. From the Azure Migrate project, open **Discover and assess** → **Discover**.
-2. Choose **SQL Server**, then **Using appliance**.
-3. Select **Servers running in your VMware environment / Physical or other servers** depending on
-   your lab topology. For an Azure-hosted simulated on-prem, **Physical or other** is the right
-   choice.
-4. Download the appliance configuration file and the appliance installer.
-5. Provision a Windows Server VM in the lab network (`vm-migrate-appliance`, `Standard_D4s_v3`
-   recommended) and run the installer there.
-6. Open the appliance configuration manager (`https://<appliance-name>:44368`) and:
-   - Sign in to the Azure subscription
-   - Add **SQL Server authentication credentials** with read access to system DMVs on each source
-     instance
-   - Add the IPs / FQDNs of both source instances
-   - Start **Continuous discovery**
-
-Allow at least 15–30 minutes of performance collection so the SKU recommendation has enough
-samples. For real engagements collect 7–30 days.
-
----
-
-## Step 4 — Run the assessment for SQL Server 2012 → Azure SQL Database
-
-1. In the Azure Migrate project, open **Discover and assess** → **Assess**.
-2. Choose **Azure SQL** as the assessment type.
-3. Configure assessment **properties**:
-   - Name: `assess-sql2012-to-azuresqldb`
-   - **Target deployment type**: Azure SQL Database
-   - **Service tier**: General Purpose
-   - **Compute tier**: Provisioned
-   - **Pricing model**: Pay-as-you-go (or your reservation choice)
-   - **Sizing criteria**: Performance-based (fallback: as-on-premises) — comfort factor 1.2 for
-     lab, 1.5+ for production
-   - Region: `westeurope`
-4. Select the discovered group containing `vm-sql-2012` and run the assessment.
-5. When the run completes, open the assessment and capture:
-   - **Migration readiness** for each of the three databases
-   - **SKU recommendation** (vCore size, storage, estimated monthly cost)
-   - **Migration issues** and **Migration warnings**
-6. Export results: **Export assessment** → download the Excel report.
-
-Expected pattern for a vanilla SQL 2012 lab:
-
-| Database | Readiness | Likely SKU | Notes |
-|---|---|---|---|
-| `app_orders` | Ready with conditions | GP Gen5 2 vCore | Watch for cross-DB queries |
-| `app_inventory` | Ready | GP Gen5 2 vCore | Clean |
-| `app_billing` | Ready with conditions | GP Gen5 4 vCore | SQL Agent jobs flagged |
-
-(Adjust based on the actual lab tenant data — the numbers above are illustrative.)
-
----
-
-## Step 5 — Run the assessment for SQL Server 2019/2022 → Azure SQL Managed Instance
-
-1. Repeat the assessment flow with a new assessment named `assess-sql2019-to-azuresqlmi`.
-2. Configure properties:
-   - **Target deployment type**: Azure SQL Managed Instance
-   - **Service tier**: General Purpose
-   - **Compute tier**: Provisioned
-   - **Pricing model**: Pay-as-you-go
-   - **Sizing criteria**: Performance-based
-   - Region: `westeurope`
-3. Select the discovered group containing `vm-sql-source` (the SQL 2019/2022 host) and run the
-   assessment.
-4. Capture:
-   - **Migration readiness** for `AdventureWorks2019` and `WideWorldImporters`
-   - **SKU recommendation** (target General Purpose, ~4 vCore, ~32 GB+ storage)
-   - **Monthly cost estimate** (used as the baseline for Challenge 3)
-
----
-
-## Step 6 — Build the remediation backlog
-
-Combine DMA and Azure Migrate findings into a single backlog. Tag each row with the **official
-rule ID** so reviewers can trace every item back to the
+Turn the DMA findings into a prioritized backlog. Tag each row with the **official rule name** so
+reviewers can trace every item back to the
 [assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
 
-| Rule ID | Source DB | Category | Decision | Owner | Target challenge |
-|---|---|---|---|---|---|
-| `XpCmdshell` + `AgentJobs` | `app_billing` (SQL 2012) | Issue + Warning | Refactor SQL Agent job to Azure Automation runbook (no `xp_cmdshell`) | DBA | Before Challenge 2 |
-| `CrossDatabaseReferences` | `app_orders` (SQL 2012) | Issue | Consolidate the shared table into the same target DB or use Elastic Database Query | App team | Before Challenge 2 |
-| `DbCompatLevelLowerThan100` | `app_inventory` (SQL 2012) | Warning | Raise compat level on the target after migration (post-cutover task in Challenge 2) | DBA | After Challenge 2 |
-| `ClrAssemblies` | `WideWorldImporters` | Issue (for SQL DB) | Keep MI as the target — confirms Challenge 3 routing | Architect | Confirms Challenge 3 target |
-| `TraceFlags` (`TF 4199`) | `vm-sql-source` instance | Warning | Enable the equivalent setting on the MI target post-migration | DBA | After Challenge 3 |
+| Finding | Source DB | Category | Decision | When |
+|---|---|---|---|---|
+| Memory-optimized tables | `TEAM99_SharedMasterDatabDB` | Issue | Choose Business Critical target tier **or** convert the memory-optimized tables to disk-based before migrating to General Purpose | Before Challenge 2 |
+| Compat level 110 | `TEAM01_AdventureWorks2019` | Warning | Raise compat level on the target after migration once validated | After Challenge 2 |
+| Compat level 120 | `TEAM99_*` | Warning | Raise compat level post-cutover | After Challenge 2 |
+| `WindowsAuthentication` | instance | Warning | Re-create needed principals as Microsoft Entra users on the target | During Challenge 2 |
 
-Persist this backlog as `assessment-backlog.md` (or a sheet) next to the exported assessment
-reports.
+Persist this backlog as `assessment-backlog.md` (or a sheet) next to the exported DMA report.
+
+---
+
+## Step 5 — (Optional) Azure Migrate SKU & cost recommendation
+
+DMA gives you the rule-mapped readiness report, which is enough to proceed to Challenge 2. If you
+also want a **SKU recommendation and monthly cost estimate**, run an Azure Migrate SQL assessment.
+This is **optional** and heavier (it needs the lightweight appliance):
+
+1. Create an **Azure Migrate** project in `rg-microhack-sql-2026`.
+2. Deploy the **Azure Migrate appliance** (lightweight installer) **on the source VM**, register
+   it, and let it discover + performance-collect the SQL 2019 instance (allow 15–30 min of
+   collection in the lab; 7–30 days for real engagements).
+3. Create an **Azure SQL Database** assessment and capture the **readiness category**, **SKU
+   recommendation** (vCore size, storage), and **monthly cost estimate**.
+4. Reference:
+   [Azure Migrate assessment for Azure SQL](https://learn.microsoft.com/en-us/azure/migrate/concepts-azure-sql-assessment-calculation).
 
 ---
 
 ## Success criteria checklist
 
-- [ ] DMA report produced for the SQL 2012 source (3 databases, Azure SQL DB target)
-- [ ] Azure Migrate project `migrate-microhack-sql-2026` exists
-- [ ] Appliance is connected and discovery shows both source instances
-- [ ] Assessment `assess-sql2012-to-azuresqldb` complete with SKU recommendation
-- [ ] Assessment `assess-sql2019-to-azuresqlmi` complete with SKU recommendation
-- [ ] Remediation backlog written and committed alongside lab artifacts
-- [ ] All findings used to plan Challenge 2 (DMS) and Challenge 3 (MI Link)
+- [ ] You connected to `sqlvm-mh2026` (Bastion or RDP).
+- [ ] DMA assessment produced against **Azure SQL Database** for the in-scope databases, with
+      findings mapped to official rule IDs.
+- [ ] Tier-impacting finding (In-Memory OLTP in `TEAM99_SharedMasterDatabDB`) identified and a target
+      decision recorded.
+- [ ] Prioritized remediation backlog written (fix-before vs fix-after Challenge 2).
+- [ ] DMA report exported and stored with the lab artifacts.
+- [ ] (Optional) Azure Migrate assessment with SKU + monthly cost captured.
 
 ---
 
 ## Annex — Useful T-SQL discovery queries
 
-Run these on each source instance to sanity-check the appliance findings:
+Run these on the source instance (`localhost` on the VM) to sanity-check the DMA findings:
 
 ```sql
 -- Databases, size, recovery model, compat level
@@ -300,17 +244,21 @@ WHERE d.database_id > 4
 GROUP BY d.name, d.database_id, d.state_desc, d.recovery_model_desc, d.compatibility_level
 ORDER BY size_mb DESC;
 
--- SQL Agent jobs (Azure SQL DB does not support SQL Agent)
+-- Memory-optimized (In-Memory OLTP) tables — tier-gated on Azure SQL Database
+SELECT DB_NAME() AS db, COUNT(*) AS memory_optimized_tables
+FROM sys.tables WHERE is_memory_optimized = 1;
+
+-- SQL Agent jobs (not supported on Azure SQL DB)
 USE msdb;
 SELECT name, enabled, date_created FROM dbo.sysjobs;
 
 -- Linked servers (not supported on Azure SQL DB)
 SELECT name, product, provider, data_source FROM sys.servers WHERE server_id > 0;
 
--- CLR assemblies
+-- CLR assemblies (not supported on Azure SQL DB)
 SELECT name, permission_set_desc, is_user_defined FROM sys.assemblies WHERE is_user_defined = 1;
 
--- Cross-database references
+-- Cross-database references (not supported on Azure SQL DB)
 SELECT DISTINCT
     referencing_schema_name = OBJECT_SCHEMA_NAME(d.referencing_id),
     referencing_object_name = OBJECT_NAME(d.referencing_id),
