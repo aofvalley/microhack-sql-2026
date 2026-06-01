@@ -418,6 +418,21 @@ Migrate **SKU + monthly cost** sizing.
 4. Use **View assessment history** to revisit prior runs. The findings map to the same rule catalogue
    reviewed in **Step 2.4**.
 
+The **Migrate SQL Server to Azure** landing page lays the flow out as the same four steps as the
+Azure Migrate hub — readiness assessment → provision target → migrate data → monitor and cutover —
+but driven directly from SSMS against the live instance (no appliance, no Arc):
+
+![SSMS — Migrate SQL Server to Azure landing page (4-step flow)](../../Images/c1-step-3a-ssms-migrate-menu.png)
+
+The readiness run produces the same **Azure SQL migration assessment report** as Step 2: it confirms
+the source instance (`sqlvm-mh2026`, SQL Server 2019 Developer, Mixed mode, 3 user databases) and the
+three **migration target recommendations** — **Azure SQL Managed Instance** (★ Recommended), **Azure
+SQL Database** and **SQL Server on Azure VM** — each with its per-database readiness breakdown. Note it
+matches the Step 2.4 findings exactly (2 Ready, 1 Ready with warnings for the Database target), and the
+**Database compatibility** section flags the same single warning:
+
+![SSMS — Azure SQL migration assessment report (source instance + target recommendations)](../../Images/c1-step-3b-ssms-assessment-report.png)
+
 > The same SSMS panel also exposes an **Upgrade Assessment** ("Migrate to higher version of SQL
 > Server") for in-place SQL Server version upgrades — out of scope here, but handy to know it lives in
 > the same place.
