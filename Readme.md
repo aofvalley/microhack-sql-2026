@@ -19,10 +19,11 @@ assessment and migration paths for Azure SQL Managed Instance.
 
 **What changed since the original:** Azure Data Studio was retired on 28-Feb-2026 and the Azure SQL
 Migration extension was deprecated. This edition replaces that flow with Azure Database Migration
-Service (DMS), Managed Instance Link, and Log Replay Service (LRS). The lab covers two source
-profiles: a legacy **SQL Server 2012** instance with three application databases (used in
-Challenge 2 for the DMS path to Azure SQL Database) and a modern **SQL Server 2019/2022** instance
-hosting AdventureWorks2019 and WideWorldImporters (used in Challenge 3 for Managed Instance Link).
+Service (DMS), Managed Instance Link, and Log Replay Service (LRS). The lab uses a single
+**SQL Server 2019** IaaS source hosting restored sample databases (AdventureWorks2019 /
+WideWorldImporters): it is assessed in Challenge 1 against **all** Azure SQL targets (Azure SQL
+Database, Azure SQL Managed Instance, and SQL Server on Azure VM), then migrated to Azure SQL
+Database with DMS in Challenge 2 and to Azure SQL Managed Instance with MI Link in Challenge 3.
 The original Microsoft MicroHack is credited here:
 https://github.com/microsoft/MicroHack/tree/main/03-Azure/01-02%20Data/02-SQL_Modernization
 
@@ -62,7 +63,7 @@ Prerequisites:
 
 * [Challenge 0 — SQL Server access setup](challenges/challenge-00.md) **<- Start here**
 * [Challenge 1 — Assessment](challenges/challenge-01.md)
-* [Challenge 2 — DMS migration (SQL 2012 → Azure SQL DB)](challenges/challenge-02.md)
+* [Challenge 2 — DMS migration (SQL 2019 → Azure SQL DB)](challenges/challenge-02.md)
 * [Challenge 3 — Managed Instance Link migration](challenges/challenge-03.md)
 * [Challenge 4 — Monitoring and Performance on Azure SQL Managed Instance](challenges/challenge-04.md)
 * [Challenge 5 — Security & Defender for SQL on Azure SQL Managed Instance](challenges/challenge-05.md)

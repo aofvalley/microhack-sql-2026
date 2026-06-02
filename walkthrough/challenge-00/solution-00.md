@@ -11,24 +11,21 @@
 1. Sign in to Azure CLI and Az PowerShell against the lab tenant and subscription.
 2. Connect to the lab JumpBox through Azure Bastion.
 3. From the JumpBox, open SSMS 20+ and the VS Code MSSQL extension.
-4. Connect to the **SQL Server 2012** legacy instance (used as the source for Challenge 2).
-   - Confirm the three application databases are online.
+4. Connect to the **SQL Server 2019** instance (the single lab source used across Challenges 1–5).
+   - Confirm the restored sample databases (AdventureWorks2019 / WideWorldImporters /
+     AdventureWorksDW2019) are online.
    - Capture host name, port, login, and password for later challenges.
-5. Connect to the **SQL Server 2019/2022** instance (used as the source for Challenges 1, 3, 4, 5).
-   - Confirm `AdventureWorks2019` and `WideWorldImporters` are online.
-6. Validate outbound paths required by later challenges (Azure Migrate appliance, DMS Self-hosted
+5. Validate outbound paths required by later challenges (Azure Migrate appliance, DMS Self-hosted
    Integration Runtime, storage account, MI Link endpoints).
-7. Document any blockers and hand off the validated environment to the rest of the team.
+6. Document any blockers and hand off the validated environment to the rest of the team.
 
 ## Hand-off checklist
 
 - [ ] Tenant ID and subscription ID confirmed
 - [ ] Resource group and region noted
 - [ ] JumpBox name + Bastion connection working
-- [ ] SQL Server 2012 instance reachable, sysadmin credentials available
-- [ ] SQL Server 2019/2022 instance reachable, sysadmin credentials available
-- [ ] Three application databases listed on SQL 2012
-- [ ] AdventureWorks2019 and WideWorldImporters online on SQL 2019/2022
+- [ ] SQL Server 2019 instance reachable, sysadmin credentials available
+- [ ] Sample databases (AdventureWorks2019 / WideWorldImporters / AdventureWorksDW2019) online
 - [ ] Connection strings stored in the shared secure note
 
 ---
