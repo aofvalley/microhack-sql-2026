@@ -101,8 +101,16 @@ cd infra
   stored in each user's Key Vault if you omit them. Pass `SecureString` values to set your own.
 - `-InitialPassword` — temporary Entra ID password (default `Temporal01!`); users must change it
   and register MFA at first sign-in.
-- `-DeploySqlMi` / `-DeploySourceVm` — `true`/`false` toggles (both default `true`).
+- `-DeploySqlMi` / `-DeploySourceVm` — `true`/`false` toggles (both default `true`). For a fast,
+  low-cost smoke test, pass `-DeploySqlMi false` (the Managed Instance takes 3-6 h and is the
+  biggest cost driver).
+- `-SecurityControlIgnore` — tags Azure SQL / SQL MI with `SecurityControl=Ignore` to satisfy
+  governance deny policies on **MCAPS / internal Microsoft subscriptions**. Add it if your test
+  subscription rejects the SQL resources otherwise.
 - `-WhatIf` — preview the deployment without creating anything.
+
+> 🧪 **Quick test:** deploy a single environment first with `-UserCount 1` (optionally
+> `-DeploySqlMi false`) to validate everything end to end before provisioning the full cohort.
 
 Preview first:
 
