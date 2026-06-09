@@ -271,10 +271,7 @@ function Enable-SqlNetworkAndMixedMode {
             Set-ItemProperty -Path $_.PSPath -Name 'TcpDynamicPorts' -Value '' -ErrorAction SilentlyContinue
         }
 
-    Write-Log 'Ensuring NT AUTHORITY\SYSTEM has sysadmin before applying configuration'
-    Grant-SysadminToSystemIfNeeded
-
-    Write-Log 'Restarting SQL Server service to apply configuration'
+    Write-Log 'Restarting SQL Server service to apply TCP/IP and mixed-mode configuration'
     $service = Get-Service -Name $sqlInstance
     if ($service.Status -ne 'Running') {
         Start-Service -Name $sqlInstance -ErrorAction Stop
@@ -283,16 +280,33 @@ function Enable-SqlNetworkAndMixedMode {
         Restart-Service -Name $sqlInstance -Force -ErrorAction Stop
     }
     Start-Service -Name 'SQLSERVERAGENT' -ErrorAction SilentlyContinue
+    Wait-SqlOnline
 
+    # The first SQL Server restart on these marketplace images triggers a one-time
+    # image-hardening step that removes NT AUTHORITY\SYSTEM from the sysadmin role.
+    # The CSE runs as NT AUTHORITY\SYSTEM, so the sysadmin grant must happen AFTER
+    # this restart, otherwise Configure-SqlLogins (which requires sysadmin) fails.
+    # Re-granting here is durable: it persists across all subsequent restarts.
+    Write-Log 'Ensuring NT AUTHORITY\SYSTEM has sysadmin (after post-restart image hardening)'
+    Grant-SysadminToSystemIfNeeded
+
+    # Grant-SysadminToSystemIfNeeded leaves the service stopped when it performs the
+    # single-user grant; bring SQL Server back online before continuing.
+    $service = Get-Service -Name $sqlInstance
+    if ($service.Status -ne 'Running') {
+        Start-Service -Name $sqlInstance -ErrorAction Stop
+        Start-Service -Name 'SQLSERVERAGENT' -ErrorAction SilentlyContinue
+    }
     Wait-SqlOnline
 }
 
 function Grant-SysadminToSystemIfNeeded {
-    # On the marketplace SQL image, only 'sa' is sysadmin and no Windows login
-    # has sysadmin, so the CSE (running as NT AUTHORITY\SYSTEM) cannot configure
-    # logins. Bootstrap by starting SQL in single-user mode (restricted to the
-    # SQLCMD app), where a Local System connection is granted sysadmin, and add
-    # NT AUTHORITY\SYSTEM to the sysadmin role permanently. Idempotent.
+    # After the configuration restart, the image-hardening step has removed
+    # NT AUTHORITY\SYSTEM from the sysadmin role, so the CSE (running as
+    # NT AUTHORITY\SYSTEM) can no longer configure logins. Bootstrap by starting
+    # SQL in single-user mode (restricted to the SQLCMD app), where a Local System
+    # connection is granted sysadmin, and add NT AUTHORITY\SYSTEM to the sysadmin
+    # role permanently. Idempotent: skips when SYSTEM already has sysadmin.
     $alreadySysadmin = $false
     try {
         $alreadySysadmin = ([int](Invoke-SqlScalar -Query "SELECT ISNULL(IS_SRVROLEMEMBER('sysadmin'), 0);" -CommandTimeout 15) -eq 1)

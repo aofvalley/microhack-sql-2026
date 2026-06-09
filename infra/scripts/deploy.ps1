@@ -166,6 +166,20 @@ function Publish-SetupScriptToStaging {
 
     $saId = (((Invoke-Az -Arguments @('storage', 'account', 'show', '--resource-group', $stagingRg, '--name', $StorageAccountName, '--query', 'id', '--output', 'tsv')).Output) -join '').Trim()
 
+    # Governed subscriptions (e.g. MCAPS) often apply a Modify policy at create time
+    # that sets publicNetworkAccess=Disabled on new storage accounts. That blocks the
+    # data-plane upload below AND the VM Custom Script Extension's later SAS download,
+    # so explicitly re-enable public network access (default-action Allow) on the
+    # staging account. This is a transient staging artifact deleted by cleanup.ps1.
+    Write-Host "Ensuring public network access is enabled on staging account $StorageAccountName"
+    Invoke-Az -Arguments @(
+        'storage', 'account', 'update',
+        '--resource-group', $stagingRg,
+        '--name', $StorageAccountName,
+        '--public-network-access', 'Enabled',
+        '--default-action', 'Allow'
+    ) -AllowFailure | Out-Null
+
     $principal = Get-CurrentPrincipal
     Write-Host "Granting Storage Blob Data Contributor to $($principal.PrincipalType) $($principal.ObjectId)"
     Invoke-Az -Arguments @(
