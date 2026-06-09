@@ -18,13 +18,11 @@ For teams that want a richer fleet view, Microsoft is also introducing **Databas
 
 SQL Managed Instance requires **two separate diagnostic settings**: one on the managed instance resource (instance-level telemetry) and one on each individual database (database-level telemetry). Open the Azure portal and navigate to **SQL managed instances** → `sqlmi-microhack-2026` → **Monitoring** → **Diagnostic settings**.
 
-![SQL MI diagnostic settings blade](../../Images/c2-step-01-sql-mi-diagnostic-settings-blade.png)
+![SQL MI diagnostic settings blade](../../Images/c4-step-01-server-diag-settings.png)
 
 **Instance-level diagnostic setting** — Create a setting named `diag-sqlmi-instance-to-la` on the managed instance resource. Enable:
 
-- `ResourceUsageStats`
-
-Also enable **AllMetrics** if the option is shown.
+- `Resource Usage Statistics`
 
 **Database-level diagnostic setting** — Navigate to your migrated database (e.g., `AdventureWorks2019`) within the managed instance → **Monitoring** → **Diagnostic settings**. Create a setting named `diag-sqlmi-db-to-la`. Enable:
 
@@ -33,13 +31,13 @@ Also enable **AllMetrics** if the option is shown.
 - `QueryStoreWaitStatistics`
 - `Errors`
 
+![SQL MI database diagnostic settings blade](../../Images/c4-step-02-database-diag-settings.png)
+
 Send both diagnostic settings to the Log Analytics workspace `la-microhack-sql` in `rg-microhack-sql-2026`. Save and wait 5-10 minutes before expecting events in Log Analytics.
 
 > **Note:** Categories such as `Timeouts`, `Blocks`, `Deadlocks`, `DatabaseWaitStatistics`, and `AutomaticTuning` are available only on **Azure SQL Database** and do not apply to SQL Managed Instance. If you need blocking and deadlock data on SQL MI, use engine-level DMVs (e.g., `sys.dm_exec_requests`, `sys.dm_tran_locks`) or Extended Events instead.
 
-> **Note:** The audit categories `SQLSecurityAuditEvents` and `DevOpsOperationsAudit` require [SQL MI auditing](https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/auditing-configure?view=azuresql) to be enabled first. If your facilitator has enabled auditing, these categories will appear in the diagnostic settings.
-
-![Diagnostic categories selected](../../Images/c2-step-02-diagnostic-categories-selected.png)
+![Diagnostic categories selected](../../Images/c4-step-03-database-diag-settings-cat-selected.png)
 
 If you prefer Azure CLI, use the same resource names from Solution 1. Note that you need **two commands** — one for the instance and one for the database:
 
@@ -79,19 +77,20 @@ az monitor diagnostic-settings create \
   ]'
 ```
 
-![Log Analytics workspace destination](../../Images/c2-step-03-log-analytics-workspace-destination.png)
+![Log Analytics workspace destination](../../Images/c4-step-04-database-diag-settings-configured.png)
 
 ## Step 2 — Generate workload pressure
 
-Connect to the migrated database, for example `AdventureWorks2019` or `TenantCRM`, from SQL Server Management Studio (SSMS) or VS Code with the MSSQL extension. Use the SQL login provided for the lab and the fully qualified MI host name from the portal overview.
+Connect to the migrated database `AdventureWorks2019`, from SQL Server Management Studio (SSMS). Use your AAD user and the fully qualified MI host name from the portal overview. Keep in mind we are connecting to the Public endpoint, so the connection is made via de 3342 port.
+
+![SSMS connect to managed instance](../../Images/c4-step-05-connect-ssms-managed-instance.png)
+
+![SSMS connect to managed instance](../../Images/c4-step-06-connect-ssms-managed-instance-2.png)
 
 > **Multi-team deployments:** If your lab uses team-prefixed databases (e.g., `TEAM01_AdventureWorks2019`), replace every `AdventureWorks2019` reference in this walkthrough with your team-prefixed database name.
 
-![SSMS connect to managed instance](../../Images/c2-step-04-ssms-connect-managed-instance.png)
-
 Run a synthetic workload for 10-15 minutes so the portal, Query Store, DMVs, and Log Analytics all have enough signal. The following script deliberately creates CPU pressure, logical reads, a cursor loop, and a missing-index-style scan.
-
-> **Note:** The repo also includes `scripts/sql/dirty-workload.sql` (run via `scripts/sql/Invoke-DirtyWorkload.ps1`), but that script creates assessment findings for Challenge 1 — not the heavy CPU pressure needed here. Use the inline workload below for this challenge.
+(Do not wait for the script to finish as it will take a very long time)
 
 ```sql
 USE AdventureWorks2019;
@@ -102,12 +101,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT TOP (75000)
+    SELECT TOP (3000000)
         h.SalesOrderID,
         h.CustomerID,
         h.OrderDate,
-        SUM(d.LineTotal) OVER (PARTITION BY h.CustomerID ORDER BY h.OrderDate) AS running_total,
-        AVG(d.LineTotal) OVER (PARTITION BY h.TerritoryID) AS avg_territory_line_total
+        SUM(d.LineTotal) OVER (PARTITION BY h.CustomerID ORDER BY h.OrderDate) AS running_total
+        --,AVG(d.LineTotal) OVER (PARTITION BY h.TerritoryID) AS avg_territory_line_total
     FROM Sales.SalesOrderHeader AS h
     CROSS JOIN Sales.SalesOrderDetail AS d
     WHERE h.OrderDate >= '2013-01-01'
@@ -122,7 +121,7 @@ BEGIN
 
     DECLARE @salesOrderId int;
     DECLARE order_cursor CURSOR FAST_FORWARD FOR
-        SELECT TOP (5000) SalesOrderID
+        SELECT TOP (100) SalesOrderID
         FROM Sales.SalesOrderHeader
         ORDER BY OrderDate DESC;
 
@@ -155,7 +154,7 @@ GO
 
 -- Run from 2-3 query windows to create pressure.
 DECLARE @i int = 0;
-WHILE @i < 40
+WHILE @i < 10
 BEGIN
     EXEC dbo.usp_MicroHackCpuPressure;
     EXEC dbo.usp_MicroHackCursorPressure;
@@ -165,7 +164,7 @@ END;
 GO
 ```
 
-![VS Code MSSQL workload execution](../../Images/c2-step-05-vscode-mssql-workload-execution.png)
+![VS Code MSSQL workload execution](../../Images/c4-step-07-ssms-query-execution.png)
 
 ## Step 3 — Identify the top CPU consumers via DMVs
 
@@ -200,11 +199,11 @@ WHERE st.dbid = DB_ID()
 ORDER BY qs.total_worker_time DESC;
 ```
 
-![Top CPU DMV query results](../../Images/c2-step-06-top-cpu-dmv-query-results.png)
+![Top CPU DMV query results](../../Images/c4-step-08-cpu-dmv-query-results.png)
 
 Open the XML execution plan for the top row. Look for scans, high estimated rows, warning icons, spills, missing index suggestions, repeated cursor activity, or expensive window aggregates. In this lab you should see the synthetic procedures near the top after several executions.
 
-![Execution plan for top consumer](../../Images/c2-step-07-execution-plan-top-consumer.png)
+![Execution plan for top consumer](../../Images/c4-step-09-execution-plan.png)
 
 ### Snapshot server-wide wait stats
 
@@ -223,6 +222,7 @@ WHERE wait_type NOT LIKE '%SLEEP%'
   AND wait_type <> 'WAITFOR'
 ORDER BY wait_time_ms DESC;
 ```
+![Wait times](../../Images/c4-step-10-wait-times.png)
 
 For active requests, use this companion query:
 
@@ -250,6 +250,8 @@ CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) AS t
 WHERE r.session_id <> @@SPID
 ORDER BY r.cpu_time DESC;
 ```
+
+![Active requests](../../Images/c4-step-11-running-queries.png)
 
 ## Step 4 — Review Performance Overview in the Portal
 
