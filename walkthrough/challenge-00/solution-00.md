@@ -1,33 +1,57 @@
-# Solution 0 — SQL Server access setup
+# Solution 0 — Environment access (facilitator)
 
 **[Home](../../Readme.md)** - [Next Solution](../challenge-01/solution-01.md)
 
-> **Owner:** _to be assigned_ — this walkthrough is a placeholder. The branch owner for
-> Challenge 0 should expand each step with portal screenshots, exact CLI commands, and any
-> tenant-specific values.
+This walkthrough is for **facilitators**. It complements
+[Challenge 0](../../challenges/challenge-00.md) with the provisioning context and the exact
+checks to run if an attendee is blocked. Attendees follow the challenge; facilitators own the
+deployment.
 
-## Outline (to be expanded)
+## Environment model
 
-1. Sign in to Azure CLI and Az PowerShell against the lab tenant and subscription.
-2. Connect to the lab JumpBox through Azure Bastion.
-3. From the JumpBox, open SSMS 20+ and the VS Code MSSQL extension.
-4. Connect to the **SQL Server 2019** instance (the single lab source used across Challenges 1–5).
-   - Confirm the restored sample databases (AdventureWorks2019 / WideWorldImporters /
-     AdventureWorksDW2019) are online.
-   - Capture host name, port, login, and password for later challenges.
-5. Validate outbound paths required by later challenges (Azure Migrate appliance, DMS Self-hosted
-   Integration Runtime, storage account, MI Link endpoints).
-6. Document any blockers and hand off the validated environment to the rest of the team.
+Each attendee has a fully isolated resource group `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`)
+provisioned ahead of time. Per user it contains:
 
-## Hand-off checklist
+- An **Entra ID user** `<prefix>user<NN>@<tenant>` with a **temporary** password (default
+  `Temporal01!`, `forceChangePasswordNextSignIn = true`) and MFA registration at first sign-in.
+- **RBAC on the RG:** Contributor + Key Vault Secrets User + Virtual Machine Administrator Login.
+- A **source VM** (Windows Server 2022 + SQL Server 2019 Developer) with SSMS 20, Azure CLI and
+  VS Code, plus **AdventureWorks2019** and **WideWorldImporters** restored and online.
+- **Azure Bastion** for VM access (public networking; no private endpoints).
+- A per-user **Key Vault** holding `student-username/password`, `vm-admin-username/password`,
+  `sql-admin-login/password`.
+- An **Azure SQL logical server** (DMS target, Challenge 2) and an **Azure SQL Managed Instance**
+  (MI Link target, Challenge 3), both public-endpoint.
 
-- [ ] Tenant ID and subscription ID confirmed
-- [ ] Resource group and region noted
-- [ ] JumpBox name + Bastion connection working
-- [ ] SQL Server 2019 instance reachable, sysadmin credentials available
-- [ ] Sample databases (AdventureWorks2019 / WideWorldImporters / AdventureWorksDW2019) online
-- [ ] Connection strings stored in the shared secure note
+## Provisioning
 
----
+The infrastructure and users are deployed and removed with the automation owned by the
+Challenge 0 / infra owner (Bicep + PowerShell + an optional web UI). It is parameterised by the
+number of attendees and supports adding a single extra environment on demand.
 
-[Previous Challenge] - **[Home](../../Readme.md)** - [Next Solution](../challenge-01/solution-01.md)
+> ℹ️ **Coordination note:** this per-student design (one RG / Bastion / Key Vault / SQL MI **per
+> user**, Entra users) differs from the shared-JumpBox `infra/` currently in this repo. Agree as
+> a team whether it **replaces** the existing `infra/` or lands as an alternative before merging
+> any infrastructure. See `team-merge/MERGE-GUIDE.md` in the infra source for the full plan.
+
+## Verification checklist (per attendee)
+
+1. **Identity** — `forceChangePasswordNextSignIn = true`, MFA registered, RG visible to the user.
+2. **Key Vault** — six secrets present; the user can read them (Key Vault Secrets User).
+3. **Bastion** — connects with `mhadmin` / `vm-admin-password`.
+4. **Source SQL** — SSMS at `localhost`; both sample databases online.
+5. **Azure SQL** — logical server reachable; FQDN captured for Challenge 2.
+6. **Managed Instance** — `Ready` (or note that it is still provisioning, up to 3–6 h).
+
+## Useful CLI checks
+
+```powershell
+# All resources in an attendee RG
+az resource list -g rg-mhlab-user01 -o table
+
+# Read the VM password the attendee needs
+az keyvault secret show --vault-name <kv-name> --name vm-admin-password --query value -o tsv
+
+# Confirm the Entra user must change password at first sign-in
+az ad user show --id mhlabuser01@<tenant> --query userPrincipalName -o tsv
+```

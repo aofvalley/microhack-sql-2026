@@ -14,7 +14,7 @@
 ## 0. What is deployed (current environment)
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | Resource group | `rg-microhack-sql-2026` |
 | Source VM | `sqlvm-mh2026` (SQL Server 2019 Developer, West Europe) |
 | VM public IP | `40.118.6.179` |

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MicroHack SQL 2026 — Lab Deployer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Local deployment tool</p>
+        <h1>MicroHack SQL 2026 — Lab Deployer</h1>
+        <p class="muted">Configure a lab deployment, preview it with What-if, and follow PowerShell output live.</p>
+      </div>
+      <span id="statusBadge" class="badge idle">Idle</span>
+    </section>
+
+    <section class="warning">
+      <strong>Security note:</strong> this tool runs <code>scripts\deploy.ps1</code> / <code>cleanup.ps1</code> using the container's or host's <code>az login</code>. Protect it with a password (<code>APP_PASSWORD</code>) and publish it only behind a trusted boundary (private network / VPN / TLS-terminating proxy).
+    </section>
+
+    <section class="modes">
+      <strong>This tool covers three operations:</strong>
+      <ul>
+        <li><strong>Initial deployment</strong> — create N students starting at index 1.</li>
+        <li><strong>Add students / extra infra</strong> — provision more students without touching the existing ones. Set <em>Number of students</em> to how many to add and <em>Start index</em> to the next free index (e.g. you already have 1–20, set start index 21 and 1 student to add user21). Use <em>Detect next free index</em> to fill it in automatically. Resource names derive from the index, so existing students are never overwritten.</li>
+        <li><strong>Clean up</strong> — bottom panel: delete every lab resource group (and optionally the Entra users).</li>
+      </ul>
+    </section>
+
+    <div class="grid">
+      <form id="deployForm" class="card">
+        <h2>Deployment settings</h2>
+
+        <label>
+          Subscription
+          <select id="subscriptionSelect">
+            <option value="">Loading Azure subscriptions…</option>
+          </select>
+        </label>
+        <label>
+          Manual subscription ID
+          <input id="subscriptionId" name="subscriptionId" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+          <span id="subscriptionMessage" class="hint"></span>
+        </label>
+
+        <label>
+          Tenant ID
+          <input id="tenantId" name="tenantId" autocomplete="off" placeholder="Tenant GUID" required>
+        </label>
+
+        <div class="two">
+          <label>
+            Number of students
+            <input id="userCount" name="userCount" type="number" min="1" max="50" value="30" required>
+          </label>
+          <label>
+            Start index
+            <input id="startIndex" name="startIndex" type="number" min="1" value="1" required>
+            <span class="hint">Use 1 for the initial deployment; use a higher value to add students without touching the existing ones.</span>
+            <button id="detectIndexBtn" type="button" class="link-btn">Detect next free index</button>
+            <span id="detectIndexMessage" class="hint"></span>
+          </label>
+        </div>
+
+        <div class="two">
+          <label>
+            Location
+            <select id="location" name="location">
+              <option value="spaincentral" selected>Spain Central</option>
+              <option value="westeurope">West Europe</option>
+              <option value="northeurope">North Europe</option>
+              <option value="francecentral">France Central</option>
+              <option value="eastus">East US</option>
+              <option value="eastus2">East US 2</option>
+              <option value="westus2">West US 2</option>
+              <option value="centralus">Central US</option>
+              <option value="uksouth">UK South</option>
+              <option value="swedencentral">Sweden Central</option>
+            </select>
+          </label>
+          <label>
+            Resource prefix
+            <input id="prefix" name="prefix" maxlength="8" pattern="[a-z0-9]{1,8}" value="mh" required>
+          </label>
+        </div>
+
+        <label>
+          VM admin password
+          <input id="vmAdminPassword" name="vmAdminPassword" type="password" autocomplete="new-password">
+          <span class="hint">Optional. Leave blank to let the deployment script generate it.</span>
+        </label>
+
+        <label>
+          SQL admin password
+          <input id="sqlAdminPassword" name="sqlAdminPassword" type="password" autocomplete="new-password">
+          <span class="hint">Optional. Leave blank to let the deployment script generate it.</span>
+        </label>
+
+        <div class="checks">
+          <label><input id="deploySqlMi" name="deploySqlMi" type="checkbox" checked> Deploy Azure SQL Managed Instance <span>(slow ~3-6h, costly)</span></label>
+          <label><input id="deploySourceVm" name="deploySourceVm" type="checkbox" checked> Deploy source VMs</label>
+          <label><input id="createUsers" name="createUsers" type="checkbox"> Create Entra ID users + RBAC</label>
+          <label><input id="securityControlIgnore" name="securityControlIgnore" type="checkbox"> Tag SQL/MI with SecurityControl=Ignore <span>(needed to bypass MCAPS deny policies when testing in a Microsoft-internal tenant)</span></label>
+        </div>
+
+        <div class="actions">
+          <button id="whatIfBtn" type="button" class="secondary">What-if (preview)</button>
+          <button id="deployBtn" type="submit" class="primary">Deploy</button>
+        </div>
+      </form>
+
+      <aside class="card estimate">
+        <h2>Cost / time estimate</h2>
+        <div class="metric"><span>Students</span><strong id="estimateStudents">30</strong></div>
+        <div class="metric"><span>SQL VMs</span><strong id="estimateVm">$11.40/h</strong></div>
+        <div class="metric"><span>Bastion</span><strong>$0.19/h</strong></div>
+        <div class="metric"><span>SQL MI</span><strong id="estimateMi">$22.50/h</strong></div>
+        <div class="total"><span>Total</span><strong id="estimateTotal">$34.09/h</strong></div>
+        <p id="estimateWarning" class="cost-warning"></p>
+      </aside>
+    </div>
+
+    <section class="card danger-card">
+      <h2>Tear down / clean up</h2>
+      <p>Deletes <strong>every</strong> resource group named <code>rg-&lt;prefix&gt;-user*</code> in the selected subscription. Uses the Subscription and Prefix from the form above.</p>
+      <div class="checks">
+        <label><input id="cleanupDeleteUsers" type="checkbox"> Also delete the Entra ID lab users</label>
+      </div>
+      <label class="cleanup-domain">Tenant domain (required to delete users)
+        <input id="cleanupTenantDomain" type="text" placeholder="contoso.onmicrosoft.com">
+      </label>
+      <div class="actions">
+        <button id="cleanupBtn" type="button" class="danger">Delete lab resources</button>
+      </div>
+    </section>
+
+    <section class="card console-card">
+      <div class="console-head">
+        <h2>Live logs</h2>
+        <div id="spinner" class="spinner hidden"></div>
+      </div>
+      <pre id="console" class="console" aria-live="polite">Ready.</pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "userCount": { "value": 30 },
+    "startUserIndex": { "value": 1 },
+    "location": { "value": "westeurope" },
+    "namePrefix": { "value": "mh" },
+    "vmAdminUsername": { "value": "mhadmin" },
+    "vmAdminPassword": { "value": "REPLACE_OR_PASS_AT_DEPLOY" },
+    "sqlAdminLogin": { "value": "sqladmin" },
+    "sqlAdminPassword": { "value": "REPLACE_OR_PASS_AT_DEPLOY" },
+    "deploySourceVm": { "value": true },
+    "deploySqlMi": { "value": true },
+    "vmSize": { "value": "Standard_D4s_v5" },
+    "autoShutdownTime": { "value": "1900" },
+    "setupScriptUri": { "value": "https://raw.githubusercontent.com/<your-org>/microhack-sql-2026-infra/main/bicep/scripts/setup-source-vm.ps1" }
+  }
+}

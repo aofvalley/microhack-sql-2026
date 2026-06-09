@@ -1,0 +1,285 @@
+# Deployment guide
+
+This guide is for facilitators deploying the infrastructure for the MicroHack SQL 2026 lab.
+
+## 1. Sign in and select the subscription
+
+```powershell
+Set-Location <repo-root>\infra
+az login --tenant <your-tenant-id>
+az account set --subscription <your-subscription-id>
+az account show --output table
+```
+
+Required permissions are Owner, or Contributor plus User Access Administrator. You also need permission to create Entra ID users.
+
+### Resource providers (one-time, subscription level)
+
+The lab needs these resource providers registered on the subscription: `Microsoft.DataMigration`
+(Challenge 2 DMS), `Microsoft.Sql`, `Microsoft.KeyVault`, `Microsoft.Compute`, `Microsoft.Network`.
+`deploy.ps1` registers any that are missing automatically at the start of a deployment. Students
+**cannot** do this themselves — they only get Contributor on their own resource group — so if you
+deploy without `deploy.ps1`, register them once with:
+
+```powershell
+foreach ($p in 'Microsoft.DataMigration','Microsoft.Sql','Microsoft.KeyVault','Microsoft.Compute','Microsoft.Network') { az provider register --namespace $p }
+```
+
+## 2. Choose deployment settings
+
+Main template: `bicep\main.bicep`  
+Scope: subscription
+
+Common settings:
+
+| Setting | Typical value | Notes |
+| --- | --- | --- |
+| `userCount` | `30` | Default cohort size. Use a smaller number for pilots. |
+| `startUserIndex` | `1` | First student index. |
+| `location` | `westeurope` | Confirm quota and service availability. |
+| `namePrefix` | `mh` | Used in resource and user names. |
+| `deploySourceVm` | `true` | Required for the SQL Server 2019 source. |
+| `deploySqlMi` | `true` | Required for Challenge 3; slow and costly. |
+| `vmSize` | `Standard_D4s_v5` | Default VM size. |
+| `autoShutdownTime` | `1900` | UTC VM auto-shutdown time. |
+
+## 3. Run a what-if
+
+Use what-if before a large deployment, especially when `userCount=30`.
+
+```powershell
+az deployment sub what-if `
+  --location westeurope `
+  --template-file .\bicep\main.bicep `
+  --parameters userCount=1 `
+               startUserIndex=1 `
+               location=westeurope `
+               namePrefix=mh `
+               deploySourceVm=true `
+               deploySqlMi=false
+```
+
+For secure parameters such as `vmAdminPassword` and `sqlAdminPassword`, provide values using your normal secure parameter process or the deployment script.
+
+## 4. Deploy with the CLI script
+
+`deploy.ps1` requires only `-SubscriptionId`. The source-VM setup script
+(`bicep\scripts\setup-source-vm.ps1`) is delivered automatically: because this
+repo is **private**, `deploy.ps1` stages the local script in a per-subscription
+storage account (`rg-<prefix>-staging`) and hands the VM Custom Script Extension a
+short-lived Azure AD **user-delegation SAS** URL — no public raw GitHub URL is used.
+VM and SQL passwords are generated if not supplied. Pass `-SetupScriptUri <url>`
+only if you want to override delivery with your own reachable URL.
+
+```powershell
+pwsh .\scripts\deploy.ps1 `
+  -SubscriptionId <your-subscription-id> `
+  -UserCount 30 `
+  -StartIndex 1 `
+  -Location spaincentral `
+  -Prefix mh `
+  -CreateUsers
+```
+
+Add `-WhatIf` to preview without deploying. Useful switches: `-CreateUsers` (create Entra users
+
++ RBAC), `-DeploySqlMi false` (skip Managed Instance), `-SecurityControlIgnore` (tag SQL/MI to
+satisfy MCAPS deny policies when testing in a Microsoft-internal tenant).
+
+Recommended rollout:
+
+1. Deploy `-UserCount 1 -DeploySqlMi false` to validate the path.
+2. Deploy a small batch with SQL MI if Challenge 3 is in scope.
+3. Deploy the full cohort only after quota and cost are confirmed.
+
+## 5. Deploy with the web UI
+
+```powershell
+Set-Location <repo-root>\infra
+Invoke-Item .\web\public\index.html
+```
+
+In the UI:
+
+1. Select the tenant and subscription.
+2. Choose `location`, `namePrefix`, `userCount`, and `startUserIndex`.
+3. Decide whether to deploy the source VM and SQL MI.
+4. Review the generated plan.
+5. Start deployment and monitor progress.
+
+## 6. Add students later (incremental)
+
+Subscription-scoped deployments are incremental and resource names derive from the student
+index, so you can add students after the initial rollout without touching the existing ones.
+Use `add-user.ps1`, which auto-detects the next free index from the existing
+`rg-<prefix>-user*` groups:
+
+```powershell
+# You already deployed 20 students; a 21st arrives. This provisions index 21 + their Entra user:
+pwsh .\scripts\add-user.ps1 `
+  -SubscriptionId <your-subscription-id> `
+  -Prefix mh `
+  -CreateUsers
+```
+
+Options: `-Count N` to add several at once, `-StartIndex N` to force the index instead of
+auto-detecting, `-WhatIf` to preview. The web UI offers the same flow via the **Detect next
+free index** button (it sets the *Start index* automatically). Every added environment includes
+an Azure SQL Managed Instance by default.
+
+## 7. Create users
+
+The deployment model includes one Entra ID user per student, created by `scripts\create-users.ps1`, with these RBAC assignments on the student's resource group:
+
++ **Contributor** — manage resources inside their own resource group.
++ **Key Vault Secrets User** — read the lab credentials stored in their per-student Key Vault.
++ **Virtual Machine Administrator Login** — sign in to the source VM through Bastion.
+
+Each user is created with a **temporary password** (default `Temporal01!`, override with
+`-InitialPassword`) and **must change it at first sign-in** (`forceChangePasswordNextSignIn=true`).
+MFA registration at first sign-in is enforced by the tenant's **Security Defaults** or a
+**Conditional Access** policy — confirm one of these is enabled in the lab tenant if you require MFA
+(it is on by default in most new tenants).
+
+`deploy.ps1 -CreateUsers` runs this automatically. To run it on its own (it discovers the
+tenant domain via Microsoft Graph if `-TenantDomain` is omitted, and needs the Graph permission
+to create users):
+
+```powershell
+pwsh .\scripts\create-users.ps1 `
+  -UserCount 30 -StartIndex 1 -Prefix mh `
+  -TenantDomain <your-tenant>.onmicrosoft.com `
+  -SubscriptionId <your-subscription-id> `
+  -AssignRbac
+```
+
+Record generated usernames and initial passwords securely (written to `out\users.csv`). Do not commit credentials to the repository.
+
+## 8. Distribute credentials
+
+All lab credentials are also stored in each student's per-student **Azure Key Vault**
+(`<prefix>u<NN>kv<hash>`) as secrets `student-username`, `student-password`, `vm-admin-username`,
+`vm-admin-password`, `sql-admin-login` and `sql-admin-password`. `student-username`/`student-password`
+record the student's Entra ID sign-in and the **initial temporary** password (the student changes it
+at first sign-in); the `vm-admin-*` and `sql-admin-*` secrets are the durable passwords needed to
+reach the machines and SQL. Students read them with their Key Vault Secrets User role, for example:
+
+```powershell
+az keyvault secret show --vault-name <prefix>u01kv<hash> --name vm-admin-password --query value -o tsv
+```
+
+For each student, provide:
+
++ Entra ID username
++ Initial password and password reset instructions, if applicable
++ Assigned resource group, for example `rg-mh-user01`
++ Their Key Vault name (lab passwords live here)
++ Source VM name or portal instructions
++ Lab repository link: <https://github.com/aofvalley/microhack-sql-2026>
+
+Students should access the VM using Azure Bastion from the Azure portal.
+
+## 9. Validate each environment
+
+For a sample of students, verify:
+
+| Check | Expected result |
+| --- | --- |
+| Student sign-in | Student can sign in to the tenant. |
+| RG access | Student sees only the expected assigned lab resources. |
+| Bastion RDP | Student can open browser-based RDP to the source VM. |
+| VM setup | SSMS 20, Azure CLI, VS Code, and MSSQL extension are installed. |
+| SQL source | AdventureWorks2019 and WideWorldImporters are restored. |
+| Azure SQL logical server | Public endpoint and firewall are configured; no target DB is pre-created. |
+| SQL MI | Present only when `deploySqlMi=true`; public endpoint enabled. |
+| Auto-shutdown | Source VM auto-shutdown is configured for `1900` UTC. |
+
+## 10. Tear down
+
+After the lab:
+
+```powershell
+pwsh .\scripts\cleanup.ps1 -SubscriptionId <id> -Prefix mh -All -Force
+```
+
+A full teardown (`-All`) also deletes the shared staging resource group
+(`rg-<prefix>-staging`) that holds the setup-script storage account. When cleaning up
+only specific students, add `-IncludeStaging` if you also want to remove that staging
+group.
+
+Alternatively, delete individual student resource groups such as `rg-mh-user01` to clean up one
+environment. Ensure Entra ID users and RBAC assignments are also removed according to the cleanup
+script's behavior.
+
+## Troubleshooting
+
+### Custom Script Extension or database restore failed
+
+Check the source VM setup logs under:
+
+```text
+C:\Lab
+```
+
+Also inspect the VM extension status in Azure:
+
+```powershell
+az vm extension list `
+  --resource-group rg-mh-user01 `
+  --vm-name <source-vm-name> `
+  --output table
+```
+
+> **Script delivery (private repo).** The setup script is delivered to the Custom Script
+> Extension via a storage account + Azure AD user-delegation SAS staged by `deploy.ps1`
+> (`rg-<prefix>-staging`). If the CSE fails with a 404/403 downloading the script, the SAS
+> may have expired (24h lifetime) or the staging storage account is missing — just re-run
+> `deploy.ps1`/`add-user.ps1`, which re-stages the script and re-issues a fresh SAS.
+
+### SQL Server IaaS extension issues
+
+Check SQL VM registration and extension state:
+
+```powershell
+az sql vm list --resource-group rg-mh-user01 --output table
+az sql vm show --resource-group rg-mh-user01 --name <source-vm-name> --output jsonc
+```
+
+If the extension is still provisioning, wait and re-check before re-running deployment steps.
+
+### Azure SQL Managed Instance takes a long time
+
+This is expected. Plan for **3-6 hours**. Large cohorts deploy many MIs, so quota, regional capacity, and subscription limits can add delays or failures.
+
+Mitigation:
+
++ Use `deploySqlMi=false` for initial source VM and Azure SQL Database preparation.
++ Deploy SQL MI earlier than the lab start if Challenge 3 is required.
++ Deploy in smaller batches using `userCount` and `startUserIndex`.
+
+### Students cannot access the VM through Bastion
+
+Verify:
+
++ The student has Virtual Machine Administrator Login on the correct resource group.
++ The student has Contributor on the correct resource group.
++ Azure Bastion exists in `AzureBastionSubnet`.
++ The VM is running.
++ NSG rules allow Bastion-required traffic.
+
+### Student cannot read Key Vault secrets
+
+Verify:
+
++ The student has the **Key Vault Secrets User** role on their resource group (or the vault).
++ They query the correct vault name (`<prefix>u<NN>kv<hash>`), shown in `out\connection-guide.md`.
++ RBAC role assignments can take a few minutes to propagate after `create-users.ps1`.
+
+### Student cannot connect to Azure SQL logical server
+
+Verify:
+
++ The logical server public endpoint is enabled.
++ Firewall rules allow Azure services and the student.
++ The student created the target database for Challenge 2.
++ Credentials use the configured `sqlAdminLogin` and `sqlAdminPassword` or the intended lab credential flow.
