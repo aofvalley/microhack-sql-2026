@@ -25,3 +25,11 @@ scripts/my-users.csv
 
 # Deploy output (contains credentials — never commit)
 scripts/out/
+
+# Per-student infra (infra/ folder) — deploy output, build artifacts, local params, node deps
+infra/out/
+infra/**/parameters.json
+infra/**/*.secret.*
+infra/bicep/**/*.json
+!infra/bicep/main.parameters.json
+infra/web/node_modules/
