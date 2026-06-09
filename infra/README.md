@@ -48,11 +48,6 @@ infra/
   docs/                     ← deployment guide, access guide, cost model, diagrams, screenshots
 ```
 
-> ℹ️ The files `main.bicep`, `main.bicepparam`, `modules/` and `microhack-min/` at the **root of
-> this `infra/` folder** are an earlier shared-JumpBox prototype kept for reference. The
-> **per-student** deployment described here lives under `infra/bicep`, `infra/scripts` and
-> `infra/web`. Agree with the team which model to keep before removing either one.
-
 ## Prerequisites
 
 - An Azure **subscription** where you have **Owner** (needed to create role assignments) and

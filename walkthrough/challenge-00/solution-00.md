@@ -25,14 +25,14 @@ provisioned ahead of time. Per user it contains:
 
 ## Provisioning
 
-The infrastructure and users are deployed and removed with the automation owned by the
-Challenge 0 / infra owner (Bicep + PowerShell + an optional web UI). It is parameterised by the
-number of attendees and supports adding a single extra environment on demand.
+The infrastructure and users are deployed and removed with the automation in
+[`infra/`](../../infra/README.md) (Bicep + PowerShell + an optional web UI). It is parameterised
+by the number of attendees and supports adding a single extra environment on demand.
 
-> ℹ️ **Coordination note:** this per-student design (one RG / Bastion / Key Vault / SQL MI **per
-> user**, Entra users) differs from the shared-JumpBox `infra/` currently in this repo. Agree as
-> a team whether it **replaces** the existing `infra/` or lands as an alternative before merging
-> any infrastructure. See `team-merge/MERGE-GUIDE.md` in the infra source for the full plan.
+> ℹ️ **Deployment model:** each attendee gets a fully isolated environment — one resource group
+> with its own Bastion, Key Vault, source VM, Azure SQL server and SQL Managed Instance, plus a
+> dedicated Entra ID user. See [`infra/README.md`](../../infra/README.md) for the two deployment
+> paths (CLI and web app) and the full parameter reference.
 
 ## Verification checklist (per attendee)
 
