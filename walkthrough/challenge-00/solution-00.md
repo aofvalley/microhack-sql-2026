@@ -38,47 +38,47 @@ by the number of attendees and supports adding a single extra environment on dem
 
 ## Worked solution — step by step
 
-Each step below maps 1:1 to the [challenge](../../challenges/challenge-00.md). The **Expected
-result** is what the attendee should see when the step succeeds.
+Each step below maps 1:1 to the [challenge](../../challenges/challenge-00.md). Follow it as the
+student would; the **Expected result** is what you should see when the step succeeds.
 
 ### Step 1 — Sign in to the Azure portal
 
-The attendee opens <https://portal.azure.com> with `<prefix>user<NN>@<tenant>` and the temporary
-password (`Temporal01!`), changes the password at first sign-in, and registers MFA.
+Sign in at <https://portal.azure.com> with `<prefix>user<NN>@<tenant>` and the temporary password
+(`Temporal01!`), change the password at first sign-in, and register MFA.
 
-**Expected result:** the Azure portal home page loads. The new password is set and MFA is
-registered; the temporary password no longer works.
+**Expected result:** the Azure portal home page loads, the new password is set, and MFA is
+registered. The temporary password no longer works.
 
 ### Step 2 — Locate the resource group
 
-The attendee searches **Resource groups** and opens `rg-mhlab-user<NN>`.
+Search for **Resource groups** and open `rg-mhlab-user<NN>`.
 
-**Expected result:** exactly **one** resource group is visible and it contains the source VM,
-Azure Bastion, the Azure SQL logical server, the SQL Managed Instance, the Key Vault and the Log
-Analytics workspace. If more than one group is visible, the RBAC scope is wrong — see
+**Expected result:** exactly **one** resource group is visible, containing the source VM, Azure
+Bastion, the Azure SQL logical server, the SQL Managed Instance, the Key Vault and the Log
+Analytics workspace. Seeing more than one group means the RBAC scope is wrong — see
 [Troubleshooting](#troubleshooting).
 
 ### Step 2a — Read credentials from Key Vault
 
-The attendee opens the Key Vault `mhlabu01kv…` → **Objects → Secrets** and reads the values (or
-uses `az keyvault secret show`).
+Open the Key Vault `mhlabu01kv…` → **Objects → Secrets** and read the values (or use
+`az keyvault secret show`).
 
 **Expected result:** six secrets are present (`student-username/password`,
-`vm-admin-username/password`, `sql-admin-login/password`) and the attendee can read them with
-their **Key Vault Secrets User** role. The password actually used to connect to the VM and to
-the source SQL Server is `vm-admin-password`.
+`vm-admin-username/password`, `sql-admin-login/password`) and you can read them with the **Key
+Vault Secrets User** role. The password used to connect to the VM and to the source SQL Server is
+`vm-admin-password`.
 
 ### Step 3 — Connect to the source VM with Bastion
 
-The attendee opens `mhlabu01-srcvm` → **Connect → Bastion** and signs in with `mhadmin` and the
+Open `mhlabu01-srcvm` → **Connect → Bastion** and sign in with `mhadmin` and the
 `vm-admin-password`.
 
 **Expected result:** the Windows Server 2022 desktop of the source VM opens in a new browser tab.
 
 ### Step 4 — Connect to the source SQL Server with SSMS
 
-Inside the VM the attendee opens SSMS, connects to `localhost` (Windows Authentication, or SQL
-auth with `sa` / `sqladmin` and `vm-admin-password`), and expands **Databases**.
+Inside the VM, open SSMS, connect to `localhost` (Windows Authentication, or SQL auth with `sa` /
+`sqladmin` and `vm-admin-password`), and expand **Databases**.
 
 **Expected result:** SSMS connects and both **AdventureWorks2019** and **WideWorldImporters** are
 present and **online**. If they are missing, the Custom Script Extension restore is still running
@@ -86,14 +86,14 @@ or failed — check `C:\Lab\setup-source-vm.log` on the VM.
 
 ### Step 5 — Identify the Azure SQL server (DMS target)
 
-The attendee opens the Azure SQL logical server `mhlabu01-sqlsrv-…` and copies its FQDN.
+Open the Azure SQL logical server `mhlabu01-sqlsrv-…` and copy its FQDN.
 
 **Expected result:** the server FQDN (`mhlabu01-sqlsrv-….database.windows.net`) is captured for
-Challenge 2. No target database exists yet — the attendee creates it during the DMS migration.
+Challenge 2. No target database exists yet — you create it during the DMS migration.
 
 ### Step 6 — Identify the Azure SQL Managed Instance (MI Link target)
 
-The attendee opens the SQL Managed Instance `mhlabu01-sqlmi-…` and checks its status.
+Open the SQL Managed Instance `mhlabu01-sqlmi-…` and check its status.
 
 **Expected result:** the Managed Instance is **Ready**. **MI provisioning can take 3–6 hours**, so
 a *Creating* state early in the lab is normal — it is the destination for Challenge 3.

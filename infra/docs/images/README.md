@@ -7,6 +7,8 @@ icons — safe to commit):
 
 - `architecture.png` — per-student architecture (example: user01).
 - `access-flow.png` — Challenge 0 access flow (example: user01).
+- `network.png` — per-student network & NSG model (example: user01).
+- `isolation.png` — subscription isolation (one resource group per student).
 
 Deployer screenshot:
 

@@ -94,6 +94,8 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 
 ## Network and NSG model
 
+![Per-student network and NSG model for user01](images/network.png)
+
 | Network element | Scope | Rules / behavior | Reason |
 | --- | --- | --- | --- |
 | VNet | Per student, `10.0.0.0/16` | No shared VNet between students. | Prevents cross-student network access and simplifies teardown. |
@@ -104,6 +106,8 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | Azure SQL MI public endpoint | Managed instance | Public endpoint enabled. | Supports the lab design decision to avoid private networking complexity. |
 
 ## Isolation model
+
+![Subscription isolation — one resource group per student](images/isolation.png)
 
 - Every student gets a separate resource group.
 - Every student gets a separate VNet, even though each VNet uses the same `10.0.0.0/16` address space.

@@ -56,7 +56,7 @@ These are your source workload for the assessment and the migrations.
 
 ## Access checklist
 
-Complete these at the start (Challenge 0). The **step-by-step guide with screenshots** is in
+Complete these at the start (Challenge 0). The **step-by-step guide** is in
 [`access-guide.md`](access-guide.md).
 
 - [ ] **1. User** — the facilitator gives you your user `<prefix>user<NN>@<tenant>` (e.g.
