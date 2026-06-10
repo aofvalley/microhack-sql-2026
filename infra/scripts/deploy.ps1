@@ -251,6 +251,7 @@ function Add-GuideUserSection {
     $sqlServer = if ($User.PSObject.Properties.Name -contains 'sqlServerFqdn') { $User.sqlServerFqdn } else { '' }
     $sqlMi = if ($User.PSObject.Properties.Name -contains 'sqlMiFqdn') { $User.sqlMiFqdn } else { '' }
     $keyVault = if ($User.PSObject.Properties.Name -contains 'keyVaultName') { $User.keyVaultName } else { '' }
+    $logAnalytics = if ($User.PSObject.Properties.Name -contains 'logAnalyticsName') { $User.logAnalyticsName } else { '' }
 
     $Lines.Add("## User $nn") | Out-Null
     $Lines.Add('') | Out-Null
@@ -260,6 +261,7 @@ function Add-GuideUserSection {
     $Lines.Add("- SQL Server FQDN: ``$sqlServer``") | Out-Null
     $Lines.Add("- SQL MI FQDN: ``$sqlMi``") | Out-Null
     $Lines.Add("- Key Vault: ``$keyVault`` (secrets: student-username, student-password, vm-admin-username, vm-admin-password, sql-admin-login, sql-admin-password)") | Out-Null
+    $Lines.Add("- Log Analytics workspace: ``$logAnalytics``") | Out-Null
     $Lines.Add("- VM admin username: ``$VmAdminUser``") | Out-Null
     $Lines.Add("- VM admin password: ``$VmAdminPasswordPlain``") | Out-Null
     $Lines.Add("- SQL admin login: ``$SqlAdminUser``") | Out-Null
@@ -436,6 +438,7 @@ try {
                 sqlMiFqdn      = ''
                 vmName         = ''
                 bastionName    = ''
+                logAnalyticsName = ''
             }
         }
     }

@@ -21,6 +21,7 @@ One resource group `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`) containing:
 | Azure SQL logical server | `bicep/modules/sqlServer.bicep` | DMS migration **target** (Challenge 2). |
 | Azure SQL Managed Instance | `bicep/modules/sqlMi.bicep` | MI Link migration **target** (Challenge 3). |
 | Key Vault | `bicep/modules/keyVault.bicep` | Stores the attendee's VM / SQL credentials. |
+| Log Analytics workspace | `bicep/modules/logAnalytics.bicep` | Per-user `<prefix>u<NN>-law` workspace for diagnostics/telemetry of the lab resources. |
 | RBAC | `bicep/modules/userEnvironment.bicep` | Contributor + Key Vault Secrets User + VM Administrator Login on the user's RG. |
 
 See `docs/architecture.md` and `docs/diagrams/` for the full architecture and Azure diagrams.
@@ -33,7 +34,7 @@ infra/
   bicep/                    ← per-student Infrastructure-as-Code (authoritative)
     main.bicep              Subscription-scoped orchestrator (loops per user)
     main.parameters.json    Parameter template (placeholders only — no secrets)
-    modules/                network, bastion, sourceVm, sqlServer, sqlMi, keyVault, userEnvironment
+    modules/                network, bastion, sourceVm, sqlServer, sqlMi, keyVault, logAnalytics, userEnvironment
     scripts/
       setup-source-vm.ps1   VM Custom Script Extension: installs tools, restores sample DBs
   scripts/                  ← deployment automation (Option 1)

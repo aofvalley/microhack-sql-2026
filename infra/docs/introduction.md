@@ -28,6 +28,8 @@ not share resources with the rest of the class.
 | **Azure Bastion** | Browser-based RDP, no public RDP client needed (`mhlabu01-bastion`) | Connect to the source VM desktop securely. |
 | **Azure SQL server** | PaaS logical server with a public endpoint (`mhlabu01-sqlsrv-…`) | **Target** of the DMS migration (Challenge 2). You create the target database. |
 | **Azure SQL Managed Instance** | Managed PaaS instance (`mhlabu01-sqlmi-…`) | **Target** of the MI Link migration (Challenge 3). |
+| **Key Vault** | Per-student vault (`mhlabu01kv…`) | Holds your lab credentials; you read them with your Key Vault Secrets User role. |
+| **Log Analytics workspace** | Per-student workspace (`mhlabu01-law`) | Collects diagnostics/telemetry for your lab resources. |
 
 > Networking is **public by design** to keep the lab simple. There are no private endpoints or
 > peering to configure.

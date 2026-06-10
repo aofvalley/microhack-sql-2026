@@ -19,6 +19,7 @@ Illustrative estimates for West Europe-style pay-as-you-go planning:
 | Azure SQL logical server | 1 | `$0/hr` | Logical server itself has no compute charge; databases created by students may add cost. |
 | Azure SQL Database created by student | 0 initially | varies | No databases are pre-created by this infrastructure. |
 | Azure SQL Managed Instance, GP_Gen5 4 vCores | 1 when `deploySqlMi=true` | `$0.80-$1.20/hr` plus storage | Slow to deploy and the dominant cost driver. |
+| Log Analytics workspace | 1 | `~$0/hr` idle | PerGB2018 pay-as-you-go ingestion (first 5 GB/month free); negligible for lab telemetry volumes. |
 | Storage, monitoring, bandwidth | varies | `$0.02-$0.10/hr` | Depends on usage. |
 
 Planning shorthand:

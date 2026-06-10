@@ -22,6 +22,7 @@ provisioned ahead of time. Per user it contains:
   `sql-admin-login/password`.
 - An **Azure SQL logical server** (DMS target, Challenge 2) and an **Azure SQL Managed Instance**
   (MI Link target, Challenge 3), both public-endpoint.
+- A per-user **Log Analytics workspace** (`<prefix>u<NN>-law`) for diagnostics/telemetry.
 
 ## Provisioning
 
@@ -30,8 +31,8 @@ The infrastructure and users are deployed and removed with the automation in
 by the number of attendees and supports adding a single extra environment on demand.
 
 > ℹ️ **Deployment model:** each attendee gets a fully isolated environment — one resource group
-> with its own Bastion, Key Vault, source VM, Azure SQL server and SQL Managed Instance, plus a
-> dedicated Entra ID user. See [`infra/README.md`](../../infra/README.md) for the two deployment
+> with its own Bastion, Key Vault, source VM, Azure SQL server, SQL Managed Instance and Log
+> Analytics workspace, plus a dedicated Entra ID user. See [`infra/README.md`](../../infra/README.md) for the two deployment
 > paths (CLI and web app) and the full parameter reference.
 
 ## Verification checklist (per attendee)

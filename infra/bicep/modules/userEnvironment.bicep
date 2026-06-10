@@ -41,6 +41,15 @@ param autoShutdownTime string = '1900'
 @description('Extra resource tags for policy compliance, e.g. SecurityControl=Ignore.')
 param resourceTags object = {}
 
+module logAnalytics 'logAnalytics.bicep' = {
+  name: 'logAnalytics'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    resourceTags: resourceTags
+  }
+}
+
 module network 'network.bicep' = {
   name: 'network'
   params: {
@@ -117,5 +126,6 @@ output bastionName string = deploySourceVm ? bastion.outputs.bastionName : ''
 output sqlServerFqdn string = sqlServer.outputs.sqlServerFqdn
 output keyVaultName string = keyVault.outputs.keyVaultName
 output keyVaultUri string = keyVault.outputs.keyVaultUri
+output logAnalyticsName string = logAnalytics.outputs.workspaceName
 #disable-next-line BCP318
 output sqlMiFqdn string = deploySqlMi ? sqlMi.outputs.managedInstanceFqdn : ''

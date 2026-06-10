@@ -52,7 +52,8 @@ SQL Managed Instance). When all the checks below pass, you are ready for Challen
 2. Open your group `rg-mhlab-user01`. It must be the **only** group you can access.
 3. Confirm it contains, at minimum: a **VM** (`mhlabu01-srcvm`), an **Azure Bastion**
    (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a
-   **SQL managed instance** (`mhlabu01-sqlmi-…`), and a **Key Vault** (`mhlabu01kv…`).
+   **SQL managed instance** (`mhlabu01-sqlmi-…`), a **Key Vault** (`mhlabu01kv…`), and a
+   **Log Analytics workspace** (`mhlabu01-law`).
 
 ![Resource group contents](images/02-resource-group.png)
 

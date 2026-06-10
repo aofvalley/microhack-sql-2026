@@ -92,4 +92,5 @@ output users array = [for (i, idx) in userIndexes: {
   sqlServerFqdn: userEnv[idx].outputs.sqlServerFqdn
   sqlMiFqdn: userEnv[idx].outputs.sqlMiFqdn
   keyVaultName: userEnv[idx].outputs.keyVaultName
+  logAnalyticsName: userEnv[idx].outputs.logAnalyticsName
 }]

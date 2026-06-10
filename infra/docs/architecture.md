@@ -47,6 +47,7 @@ rg-<prefix>-user<NN>
 
         Azure SQL logical server: public endpoint, firewall enabled
         Azure Key Vault: per-student, RBAC-authorized, stores all credentials
+        Log Analytics workspace: per-student, diagnostics/telemetry for the lab resources
         Entra ID user: Contributor + Key Vault Secrets User + VM Admin Login, scoped to this resource group
 ```
 
@@ -77,6 +78,7 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | Entra ID user | Created by `scripts\create-users.ps1` | Student sign-in identity with scoped access. | Challenges 0-5 |
 | RBAC assignments | Contributor + Key Vault Secrets User + VM Administrator Login, scoped to the student RG | Manage own RG, read Key Vault secrets, sign in via Bastion. | Challenges 0-5 |
 | Azure Key Vault | One per student, RBAC-authorized, public endpoint | Stores all lab credentials (VM admin + SQL admin). Students read them with their Key Vault Secrets User role. | Challenges 0-5 |
+| Log Analytics workspace | One per student (`<prefix>u<NN>-law`), PerGB2018, 30-day retention | Collects diagnostics/telemetry for the student's lab resources. | Challenges 0-5 |
 | Source VM | `Standard_D4s_v5` default | SQL Server 2019 source environment. | Assessment and migration source |
 | VM image | Windows Server 2022 + SQL Server 2019 Developer, `sql2019-ws2022:sqldev-gen2` | Matches the modernization source workload. | Challenges 1-3 |
 | Custom Script Extension | Restores AdventureWorks2019 and WideWorldImporters; installs SSMS 20, Azure CLI, VS Code | Prepares repeatable student workstation and SQL source. | Challenges 0-5 |
