@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": "Example only. Replace placeholder passwords and setupScriptUri before use. Do not commit real secrets.",
+  "parameters": {
+    "userCount": {
+      "value": 30
+    },
+    "startUserIndex": {
+      "value": 1
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "namePrefix": {
+      "value": "mh"
+    },
+    "vmAdminUsername": {
+      "value": "mhadmin"
+    },
+    "vmAdminPassword": {
+      "value": "REPLACE_WITH_STRONG_VM_ADMIN_PASSWORD"
+    },
+    "sqlAdminLogin": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "value": "REPLACE_WITH_STRONG_SQL_ADMIN_PASSWORD"
+    },
+    "deploySourceVm": {
+      "value": true
+    },
+    "deploySqlMi": {
+      "value": true
+    },
+    "vmSize": {
+      "value": "Standard_D4s_v5"
+    },
+    "autoShutdownTime": {
+      "value": "1900"
+    },
+    "setupScriptUri": {
+      "value": "https://raw.githubusercontent.com/OWNER/REPO/BRANCH/bicep/scripts/setup.ps1"
+    }
+  }
+}

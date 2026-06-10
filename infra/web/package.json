@@ -1,0 +1,16 @@
+{
+  "name": "microhack-sql-2026-lab-deployer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local web UI for launching MicroHack SQL 2026 lab Bicep deployments.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
