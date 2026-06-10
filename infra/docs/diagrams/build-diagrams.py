@@ -139,6 +139,9 @@ def build_architecture() -> str:
     # Per-student Key Vault holding all lab credentials (top strip of the resource group).
     kv = d.icon("Key Vault\nmhlabu01kv…\nvm/sql secrets", "key-vault", 560, 108, 46, 46, fontsize=10)
 
+    # Per-student Log Analytics workspace collecting diagnostics/telemetry.
+    law = d.icon("Log Analytics\nmhlabu01-law\ndiagnostics", "log-analytics", 720, 108, 46, 46, fontsize=10)
+
     d.edge(student, bastion, "RDP in browser (443)", color="#0078D4",
            exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(student, srv, "Portal / SSMS", color="#0078D4",
@@ -151,6 +154,8 @@ def build_architecture() -> str:
            exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(srcvm, mi, "Challenge 3 — MI Link", color="#8E44AD",
            exit_=(0.5, 1), entry=(0.5, 0))
+    d.edge(srcvm, law, "diagnostics / telemetry", color="#605E5C", dashed=True,
+           exit_=(0.5, 0), entry=(0.5, 1))
 
     d.label("AdventureWorks2019 and WideWorldImporters are restored and online on the Source VM.",
             290, 695, 850, 20, fontsize=11, bold=False, color="#605E5C")

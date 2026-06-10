@@ -3,13 +3,8 @@
 **[Home](../README.md)** - [Architecture](architecture.md) - [Introduction](introduction.md)
 
 Before you start the SQL modernization challenges, confirm that you can reach **every**
-component of your personal lab environment. Work through the steps in order. Each step has a
-matching screenshot under [`images/`](images/) and a success check.
-
-> **Facilitators:** the numbered Portal / Bastion / SSMS screenshots (`images/01-…` … `07-…`)
-> currently ship as **labeled placeholders**. Regenerate the real ones against your own tenant
-> with the Playwright helper in [`screenshots/`](screenshots/README.md) — it writes to the same
-> file names, so they will replace the placeholders automatically. The guide is fully usable as-is.
+component of your personal lab environment. Work through the steps in order. Each step ends with
+a success check.
 
 ## Access flow
 
@@ -42,8 +37,6 @@ SQL Managed Instance). When all the checks below pass, you are ready for Challen
 3. On this **first sign-in you must change your password** — set a new one and keep it safe.
 4. Complete the **multi-factor authentication (MFA)** registration when prompted.
 
-![Azure portal sign-in](images/01-portal-login.png)
-
 ✅ **Success:** you reach the Azure portal home page.
 
 ### Step 2 — Locate your resource group
@@ -54,8 +47,6 @@ SQL Managed Instance). When all the checks below pass, you are ready for Challen
    (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a
    **SQL managed instance** (`mhlabu01-sqlmi-…`), a **Key Vault** (`mhlabu01kv…`), and a
    **Log Analytics workspace** (`mhlabu01-law`).
-
-![Resource group contents](images/02-resource-group.png)
 
 ✅ **Success:** you can see your resource group and its resources.
 
@@ -75,8 +66,6 @@ them now — you will need the VM password in the next step.
    - `sql-admin-login` / `sql-admin-password` — the Azure SQL / Managed Instance admin login.
 3. Open a secret and select **Show Secret Value** to copy it.
 
-![Reading a secret from your Key Vault](images/07-key-vault.png)
-
 Or use the Azure CLI (Cloud Shell or the source VM):
 
 ```powershell
@@ -94,8 +83,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
    - **Password:** the `vm-admin-password` you read from Key Vault in Step 2a.
 4. Select **Connect**. A Windows desktop opens in a new browser tab.
 
-![Connecting through Bastion](images/03-bastion-connect.png)
-
 > Allow pop-ups for this site if your browser blocks the Bastion window.
 
 ✅ **Success:** you see the Windows Server 2022 desktop of your source VM.
@@ -112,8 +99,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 4. Expand **Databases** and confirm that **AdventureWorks2019** and **WideWorldImporters**
    are present and online.
 
-![SSMS connected to the source SQL Server](images/04-ssms-localhost.png)
-
 > Need to reach the source SQL Server **from outside** the VM (your laptop)? It is possible by
 > pointing SSMS at the **VM public IP**, port 1433, using SQL authentication. Ask the
 > facilitator — it is not required for Challenge 0.
@@ -128,8 +113,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
    `mhlabu01-sqlsrv-yzrgvstb4csl2.database.windows.net`). You will need it in **Challenge 2**
    for the DMS migration. No target database exists yet — you create it during Challenge 2.
 
-![Azure SQL server in the portal](images/05-azure-sql.png)
-
 ✅ **Success:** you locate your Azure SQL server and note its FQDN.
 
 ### Step 6 — Identify your Azure SQL Managed Instance (MI Link target)
@@ -137,8 +120,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 1. In your resource group, open the **SQL managed instance** resource `mhlabu01-sqlmi-…`.
 2. Check its status. **MI provisioning can take several hours**: if it does not appear yet or
    is in a *Creating* state, let the facilitator know. You will use it in **Challenge 3**.
-
-![Azure SQL Managed Instance in the portal](images/06-sql-mi.png)
 
 ✅ **Success:** you locate your Managed Instance (or confirm with the facilitator that it is
 still provisioning).
