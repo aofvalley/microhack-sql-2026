@@ -24,7 +24,8 @@ One resource group `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`) containing:
 | Log Analytics workspace | `bicep/modules/logAnalytics.bicep` | Per-user `<prefix>u<NN>-law` workspace for diagnostics/telemetry of the lab resources. |
 | RBAC | `bicep/modules/userEnvironment.bicep` | Contributor + Key Vault Secrets User + VM Administrator Login on the user's RG. |
 
-See `docs/architecture.md` and `docs/diagrams/` for the full architecture and Azure diagrams.
+See `docs/lab-introduction.md` for the lab overview and objectives, and `docs/architecture.md`
+plus `docs/diagrams/` for the full architecture and Azure diagrams.
 
 ## Folder contents
 
@@ -46,7 +47,7 @@ infra/
     README.md               Script reference
   web/                      ← deployment web UI (Option 2)
     server.js, public/      Local Node.js app to launch deployments from a browser
-  docs/                     ← deployment guide, access guide, cost model, diagrams, screenshots
+  docs/                     ← lab introduction, student introduction, deployment & access guides, cost model, architecture, diagrams
 ```
 
 ## Prerequisites

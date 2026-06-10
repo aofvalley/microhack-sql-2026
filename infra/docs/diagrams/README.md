@@ -7,6 +7,8 @@ Professional Azure architecture diagrams for the student documentation, built wi
 | --- | --- | --- |
 | `architecture.drawio` | `../images/architecture.png` | [architecture.md](../architecture.md), [introduction.md](../introduction.md) |
 | `access-flow.drawio` | `../images/access-flow.png` | [access-guide.md](../access-guide.md) |
+| `network.drawio` | `../images/network.png` | [architecture.md](../architecture.md) |
+| `isolation.drawio` | `../images/isolation.png` | [architecture.md](../architecture.md) |
 
 ## How they are built
 
@@ -25,6 +27,8 @@ docker run --rm -v "${dir}:/data" rlespinasse/drawio-export -f png --scale 2 --b
 # 3. Copy the rendered PNGs into docs/images for embedding
 Copy-Item .\export\architecture-Per-student-architecture.png ..\images\architecture.png -Force
 Copy-Item .\export\access-flow-Access-flow.png ..\images\access-flow.png -Force
+Copy-Item .\export\network-Network-and-NSG.png ..\images\network.png -Force
+Copy-Item .\export\isolation-Subscription-isolation.png ..\images\isolation.png -Force
 ```
 
 You can also open the `.drawio` files directly in <https://app.diagrams.net/> to edit them by

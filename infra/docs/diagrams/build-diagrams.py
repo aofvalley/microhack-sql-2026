@@ -189,10 +189,85 @@ def build_access_flow() -> str:
     return d.to_xml()
 
 
+def build_network() -> str:
+    d = Diagram("Network and NSG")
+    d.label("MicroHack SQL 2026 — Per-student network & NSG model (example: user01)", 40, 16, 1120, 30, fontsize=18)
+
+    student = d.icon("Student / facilitator\n(public internet)", "user", 50, 360, 56, 56, fontsize=10)
+
+    d.container("Virtual network  mhlabu01-vnet  (10.0.0.0/16)", 230, 90, 600, 660, "#EAF3FB", "#0078D4")
+
+    d.container("AzureBastionSubnet  (10.0.3.0/24)", 260, 140, 540, 150, "#F6FAFD", "#7AAEDB")
+    bastion = d.icon("Azure Bastion\nmhlabu01-bastion", "bastion", 300, 175, 46, 46, fontsize=10)
+    d.icon("NSG\nBastion-required\ntraffic", "nsg", 620, 175, 46, 46, fontsize=9)
+
+    d.container("snet-sql  (10.0.1.0/24)", 260, 320, 540, 170, "#F6FAFD", "#7AAEDB")
+    srcvm = d.icon("Source VM — SQL Server 2019\nmhlabu01-srcvm", "source-vm", 300, 360, 46, 46, fontsize=10)
+    d.icon("NSG\nRDP via Bastion\nSQL 1433", "nsg", 620, 360, 46, 46, fontsize=9)
+
+    d.container("snet-mi  (10.0.4.0/24, delegated to Microsoft.Sql/managedInstances)", 260, 520, 540, 180, "#F6FAFD", "#7AAEDB")
+    mi = d.icon("SQL Managed Instance\nmhlabu01-sqlmi-…\n(public endpoint)", "sql-mi", 300, 560, 46, 46, fontsize=9)
+    d.icon("NSG\nMI-required ports\n(5022 MI Link)", "nsg", 620, 560, 46, 46, fontsize=9)
+
+    d.container("Public PaaS endpoints  (outside the VNet)", 880, 140, 280, 420, "#EAF3FB", "#0078D4")
+    srv = d.icon("Azure SQL server\nmhlabu01-sqlsrv-…\nfirewall: Azure + student", "sql-server", 950, 185, 46, 46, fontsize=9)
+    db = d.icon("Target database\nyou create it (DMS)", "sql-database", 950, 330, 46, 46, fontsize=9)
+    d.icon("Key Vault\nmhlabu01kv…", "key-vault", 915, 470, 46, 46, fontsize=9)
+    d.icon("Log Analytics\nmhlabu01-law", "log-analytics", 1060, 470, 46, 46, fontsize=9)
+
+    d.edge(student, bastion, "443 HTTPS (public)", color="#0078D4", exit_=(1, 0.3), entry=(0, 0.5))
+    d.edge(bastion, srcvm, "browser RDP", color="#0078D4", exit_=(0.5, 1), entry=(0.5, 0))
+    d.edge(student, srv, "portal / SSMS 1433 (public)", color="#0078D4", exit_=(1, 0.7), entry=(0, 0.2))
+    d.edge(srcvm, db, "Challenge 2 — DMS (1433)", color="#C0392B", exit_=(1, 0.5), entry=(0, 0.5))
+    d.edge(srcvm, mi, "Challenge 3 — MI Link (5022)", color="#8E44AD", exit_=(0.5, 1), entry=(0.5, 0))
+
+    d.label("Each student has an isolated VNet; all endpoints are public by design (no private endpoints or peering).",
+            230, 705, 600, 20, fontsize=11, bold=False, color="#605E5C")
+    return d.to_xml()
+
+
+def build_isolation() -> str:
+    d = Diagram("Subscription isolation")
+    d.label("MicroHack SQL 2026 — Subscription isolation (one resource group per student)", 40, 16, 1120, 30, fontsize=18)
+
+    d.container("Azure subscription  (lab tenant)", 40, 70, 1120, 690, "#F3F9FE", "#0078D4")
+    d.icon("Subscription", "subscription", 70, 92, 38, 38, fontsize=9)
+    d.label("Deployed by the infra/ automation (deploy.ps1 or the web UI). Each student index NN → one isolated resource group.",
+            120, 96, 1000, 30, fontsize=12, bold=False, color="#323130")
+
+    # Expanded example: user01.
+    d.container("rg-mhlab-user01", 70, 150, 300, 560, "#FBFBFB", "#605E5C", dashed=True)
+    d.icon("Entra ID user — mhlabuser01@…\nRBAC scoped to this RG", "user", 100, 180, 40, 40, fontsize=8)
+    d.icon("Source VM\nmhlabu01-srcvm", "source-vm", 100, 270, 44, 44, fontsize=9)
+    d.icon("Azure SQL server\nmhlabu01-sqlsrv-…", "sql-server", 100, 360, 44, 44, fontsize=9)
+    d.icon("SQL Managed Instance\nmhlabu01-sqlmi-…", "sql-mi", 100, 450, 44, 44, fontsize=9)
+    d.icon("Key Vault\nmhlabu01kv…", "key-vault", 100, 540, 44, 44, fontsize=9)
+    d.icon("Log Analytics\nmhlabu01-law", "log-analytics", 100, 630, 44, 44, fontsize=9)
+    d.icon("Azure Bastion\nmhlabu01-bastion", "bastion", 250, 270, 44, 44, fontsize=9)
+    d.label("VNet 10.0.0.0/16\n(isolated)", 235, 360, 130, 40, fontsize=10, bold=False, color="#605E5C")
+
+    # Collapsed, identical copies.
+    for xx, name in ((400, "rg-mhlab-user02"), (640, "rg-mhlab-user03")):
+        d.container(name, xx, 150, 210, 560, "#FBFBFB", "#605E5C", dashed=True)
+        d.icon("Identical, isolated stack", "resource-group", xx + 75, 390, 60, 60, fontsize=10)
+
+    d.container("rg-mhlab-userNN", 880, 150, 250, 560, "#FBFBFB", "#605E5C", dashed=True)
+    d.label("…", 970, 300, 70, 70, fontsize=44, bold=True, color="#605E5C", align="center")
+    d.label("up to N students\n(userCount parameter)", 905, 480, 200, 40, fontsize=11, bold=False, color="#605E5C", align="center")
+
+    d.label("No VNet peering, no shared resources, no cross-RG RBAC — students cannot reach each other's environments.",
+            70, 720, 900, 18, fontsize=11, bold=False, color="#605E5C")
+    d.label("Teardown: scripts\\cleanup.ps1 deletes every rg-mhlab-user* resource group and its Entra ID user.",
+            70, 740, 900, 18, fontsize=11, bold=False, color="#C0392B")
+    return d.to_xml()
+
+
 def main():
     (HERE / "architecture.drawio").write_text(build_architecture(), encoding="utf-8")
     (HERE / "access-flow.drawio").write_text(build_access_flow(), encoding="utf-8")
-    print("Wrote architecture.drawio and access-flow.drawio")
+    (HERE / "network.drawio").write_text(build_network(), encoding="utf-8")
+    (HERE / "isolation.drawio").write_text(build_isolation(), encoding="utf-8")
+    print("Wrote architecture.drawio, access-flow.drawio, network.drawio and isolation.drawio")
 
 
 if __name__ == "__main__":
