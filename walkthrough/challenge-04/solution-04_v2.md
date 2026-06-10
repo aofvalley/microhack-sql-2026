@@ -257,23 +257,25 @@ ORDER BY r.cpu_time DESC;
 
 Return to the Azure portal → **SQL managed instances** → `sqlmi-microhack-2026` → **Overview**. Review the built-in CPU chart for the last hour, then switch to 24 hours and 7 days. Confirm whether the workload changed the CPU pattern.
 
-![SQL MI overview CPU chart](../../Images/c2-step-08-sql-mi-overview-cpu-chart.png)
+![SQL MI overview CPU chart](../../Images/c4-step4-SQLMI-CPU-chart.png)
 
 Open **Monitoring** → **Metrics**. Set scope to `sqlmi-microhack-2026`, metric namespace to SQL managed instance metrics, and add:
 
-- `CPU percentage`
-- `Data IO percentage`
-- `Log IO percentage`
+- `Average CPU percentage`
+- `IO bytes read` and/or `IO bytes written`
+- `IO requests count`
 - `Storage space used`
-- `Sessions count` or `Workers percentage` if available
+- `Virtual core count`
 
-![Metrics blade CPU and IO](../../Images/c2-step-09-metrics-blade-cpu-and-io.png)
+![Metrics blade CPU and IO](../../Images/c4-step4-SQLMI-Monitoring-Metrics.png)
 
-Under **Intelligent Performance**, review available recommendations and Intelligent Insights. The objective is not to accept every recommendation immediately; the objective is to correlate the portal signal with the DMV and Query Store evidence.
+Under **Logs**, review available recommendations and Intelligent Insights. The objective is not to accept every recommendation immediately; the objective is to correlate the portal signal with the DMV and Query Store evidence.
 
-![Intelligent Performance blade](../../Images/c2-step-10-intelligent-performance-blade.png)
+![Intelligent Insights](../../Images/c4-step4-SQLMI-Intelligent-Insights.png)
 
-> **Note:** **Query Performance Insight** is a portal blade available only on **Azure SQL Database** — it does not exist for SQL Managed Instance. On SQL MI, use the SSMS **Query Store** reports (Step 6) or the DMV queries (Step 3) to achieve the same analysis. If your lab also includes Azure SQL Database targets, you can explore Query Performance Insight there for comparison.
+In **Logs** tab, in the right top corner try the new **Observability agent**, a temporary chat that can assist you analyze the metrics and logs.
+
+![Observability agent](../../Images/c4-step4-SQLMI-Observability-Agent.png)
 
 ## Step 5 — Query Log Analytics with KQL
 
@@ -290,7 +292,7 @@ Open the Log Analytics workspace `la-microhack-sql` → **Logs**. The diagnostic
 >
 > Replace the `Category` value with any category from Step 1 to inspect its columns.
 
-![Log Analytics Logs query editor](../../Images/c2-step-11-log-analytics-query-editor.png)
+![Log Analytics Logs query editor](../../Images/c4-step4-SQLMI-LogAnalyticsQueryEditor.png)
 
 ### Query 1 — CPU utilization over time
 
@@ -315,7 +317,7 @@ This query uses `QueryStoreRuntimeStatistics` records to find queries with the h
 AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where Category == "QueryStoreRuntimeStatistics"
-| extend database_name = coalesce(DatabaseName_s, database_name_s, Resource)
+| extend database_name = coalesce(DatabaseName_s, Resource)
 | extend query_id = tostring(query_id_d), plan_id = tostring(plan_id_d)
 | extend duration_us = todouble(duration_d), max_duration_us = todouble(max_duration_d)
 | extend cpu_time_us = todouble(cpu_time_d), execution_count = todouble(count_executions_d)
@@ -402,9 +404,7 @@ AzureDiagnostics
 | render timechart
 ```
 
-![KQL CPU utilization chart](../../Images/c2-step-12-kql-cpu-utilization-chart.png)
-
-![KQL wait stats trend chart](../../Images/c2-step-13-kql-wait-stats-trend-chart.png)
+![KQL wait stats trend chart](../../Images/c4-step4-SQLMI-WaitStats-Chart.png)
 
 ## Step 6 — Use Query Store for regression analysis
 
