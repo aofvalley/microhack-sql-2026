@@ -64,8 +64,6 @@ resource group.
 3. On this **first sign-in you must change your password** — set a new one and keep it safe.
 4. Complete the **multi-factor authentication (MFA)** registration when prompted.
 
-![Azure portal sign-in](../Images/c0-step-01-portal-login.png)
-
 ✅ **Success:** you reach the Azure portal home page.
 
 ### Step 2 — Locate your resource group
@@ -75,8 +73,6 @@ resource group.
 3. Confirm it contains at least: a **VM** (`mhlabu01-srcvm`), an **Azure Bastion**
    (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a **SQL managed
    instance** (`mhlabu01-sqlmi-…`), and a **Key Vault** (`mhlabu01kv…`).
-
-![Resource group contents](../Images/c0-step-02-resource-group.png)
 
 ✅ **Success:** you can see your resource group and its resources.
 
@@ -99,8 +95,6 @@ them. Get them now — you need the VM password in the next step.
 az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password --query value -o tsv
 ```
 
-![Reading a secret from Key Vault](../Images/c0-step-02a-key-vault.png)
-
 ✅ **Success:** you can read your VM and SQL passwords from your Key Vault.
 
 ### Step 3 — Connect to the source VM with Bastion
@@ -111,8 +105,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
    - **Username:** `mhadmin` (the VM local administrator)
    - **Password:** the `vm-admin-password` you read from Key Vault in Step 2a.
 4. Select **Connect**. A Windows desktop opens in a new browser tab (allow pop-ups).
-
-![Connecting through Bastion](../Images/c0-step-03-bastion-connect.png)
 
 ✅ **Success:** you see the Windows Server 2022 desktop of your source VM.
 
@@ -127,8 +119,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 3. Select **Connect** and expand **Databases**.
 4. Confirm **AdventureWorks2019** and **WideWorldImporters** are present and online.
 
-![SSMS connected to the source SQL Server](../Images/c0-step-04-ssms-localhost.png)
-
 > Need to reach the source SQL Server **from your laptop** instead? Point SSMS at the
 > **VM public IP, port 1433** with SQL authentication (`sqladmin` / `vm-admin-password`). The
 > NSG allows 1433 inbound (public lab). Not required for Challenge 0.
@@ -141,8 +131,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 2. Copy its **FQDN** (for example `mhlabu01-sqlsrv-….database.windows.net`). You need it in
    **Challenge 2** for the DMS migration. No target database exists yet — you create it there.
 
-![Azure SQL server in the portal](../Images/c0-step-05-azure-sql.png)
-
 ✅ **Success:** you locate your Azure SQL server and note its FQDN.
 
 ### Step 6 — Identify your Azure SQL Managed Instance (MI Link target)
@@ -150,8 +138,6 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 1. In your resource group, open the **SQL managed instance** `mhlabu01-sqlmi-…`.
 2. Check its status. **MI provisioning can take several hours**: if it is still in a *Creating*
    state, tell the facilitator. You use it in **Challenge 3**.
-
-![Azure SQL Managed Instance in the portal](../Images/c0-step-06-sql-mi.png)
 
 ✅ **Success:** you locate your Managed Instance (or confirm it is still provisioning).
 
