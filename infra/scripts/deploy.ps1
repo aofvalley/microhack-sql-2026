@@ -9,6 +9,7 @@ param(
     [int]$StartIndex = 1,
     [string]$Location = 'westeurope',
     [string]$Prefix = 'mh',
+    [string]$VmSize = 'Standard_D4s_v5',
     [object]$VmAdminPassword,
     [object]$SqlAdminPassword,
     [string]$InitialPassword = 'Temporal01!',
@@ -412,7 +413,7 @@ try {
         sqlAdminPassword = @{ value = $sqlPasswordPlain }
         deploySourceVm = @{ value = $deploySourceVmBool }
         deploySqlMi    = @{ value = $deploySqlMiBool }
-        vmSize         = @{ value = 'Standard_D4s_v5' }
+        vmSize         = @{ value = $VmSize }
         autoShutdownTime = @{ value = '1900' }
         setupScriptUri = @{ value = $effectiveSetupUri }
         sqlEntraAdminLogin = @{ value = $sqlEntraAdminLogin }
