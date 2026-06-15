@@ -437,29 +437,7 @@ GO
 ```
 
 Now we are going to generate load to see a query with different executions plans:
-
-```sql
--- Clear all existing Query Store data
-ALTER DATABASE AdventureWorks2019 SET QUERY_STORE CLEAR ALL;
-GO
-
--- Configure Query Store to capture ALL queries immediately
-ALTER DATABASE AdventureWorks2019
-SET QUERY_STORE = ON
-(
-    OPERATION_MODE = READ_WRITE,
-    QUERY_CAPTURE_MODE = ALL,              -- Capture everything
-    MAX_STORAGE_SIZE_MB = 1000,
-    INTERVAL_LENGTH_MINUTES = 1,           -- Short intervals for quick results
-    SIZE_BASED_CLEANUP_MODE = AUTO,
-    MAX_PLANS_PER_QUERY = 200,
-    DATA_FLUSH_INTERVAL_SECONDS = 60
-);
-GO
-```
-
-
-Now we create a stored procedure to run a specifc query, first with the needed indexing for performance and then, dropping this index to verify the performance degradation:
+We will create a stored procedure to run a specifc query, first with the needed indexing for performance and then, dropping this index to verify the performance degradation:
 
 ```sql
 DROP PROCEDURE IF EXISTS dbo.usp_GetSalesOrdersByCustomer;
