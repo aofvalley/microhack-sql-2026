@@ -62,6 +62,31 @@ pwsh .\scripts\create-users.ps1 `
   -AssignRbac
 ```
 
+## Provision DMS (Challenge 2)
+
+Create one Azure Database Migration Service (`<prefix>u<NN>-dms`) per student resource group and grant
+each student **Contributor** on their own DMS, so they can run the Challenge 2 migration. The DMS
+region defaults to each resource group's location (handles labs spread across regions); pass
+`-Location` to force one region. Idempotent — re-running skips existing DMS instances.
+
+```powershell
+pwsh .\scripts\deploy-dms.ps1 `
+  -TenantDomain 'contoso.onmicrosoft.com' `
+  -UserCount 30 `
+  -StartIndex 1 `
+  -Prefix 'mh' `
+  -SubscriptionId '<your-subscription-id>'
+```
+
+Preview only:
+
+```powershell
+pwsh .\scripts\deploy-dms.ps1 -TenantDomain 'contoso.onmicrosoft.com' -UserCount 5 -WhatIf
+```
+
+> Requires `az login` and the `datamigration` CLI extension (installed automatically if missing).
+> The `Microsoft.DataMigration` provider is registered on first run.
+
 ## Start / stop labs (non-destructive)
 
 Power all student VMs on or off without deleting anything — useful when you deploy the labs ahead of
@@ -125,6 +150,10 @@ pwsh .\scripts\cleanup.ps1 -SubscriptionId '<your-subscription-id>' -Prefix 'mh'
 | create-users | TenantDomain | required | Verified Entra domain for UPNs. |
 | create-users | Password | generated | Existing users are not reset; blank password in CSV means skipped existing user. |
 | create-users | AssignRbac | false | Adds Reader and Virtual Machine Administrator Login per user RG. |
+| deploy-dms | TenantDomain | required | Verified Entra domain for student UPNs. |
+| deploy-dms | UserCount / StartIndex / Prefix | 30 / 1 / mh | Range and naming of `rg-<prefix>-user<NN>` / `<prefix>u<NN>-dms`. |
+| deploy-dms | Location | RG location | Force one DMS region; defaults to each resource group's location. |
+| deploy-dms | Role / ThrottleLimit | Contributor / 8 | Role granted to each student on their DMS; parallel degree. |
 | cleanup | All | false | Discover and delete every `rg-<prefix>-user*` group (ignores UserCount/StartIndex). |
 | cleanup | DeleteUsers, TenantDomain, Force | false | `TenantDomain` is required when deleting users; `Force` skips confirmation. |
 | start-labs/stop-labs | SubscriptionId, Prefix | required / mh | Discover `rg-<prefix>-user*` and start / deallocate every VM. |
