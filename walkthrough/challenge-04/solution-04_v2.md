@@ -10,7 +10,7 @@
 
 > **Note:** The deployment Bicep (`infra/modules/monitoring.bicep`) already provisions the Log Analytics workspace `log-<prefix>`. If your facilitator also pre-configured diagnostic settings on the SQL MI, verify the categories below are enabled and skip to Step 2.
 
-SQL Managed Instance requires **two separate diagnostic settings**: one on the managed instance resource (instance-level telemetry) and one on each individual database (database-level telemetry). Open the Azure portal and navigate to **SQL managed instances** → `sqlmi-microhack-2026` → **Monitoring** → **Diagnostic settings**.
+SQL Managed Instance requires **two separate diagnostic settings**: one on the managed instance resource (instance-level telemetry) and one on each individual database (database-level telemetry). Open the Azure portal and navigate to **SQL managed instances** →  **Monitoring** → **Diagnostic settings**.
 
 ![SQL MI diagnostic settings blade](../../Images/c4-step-01-server-diag-settings.png)
 
@@ -29,49 +29,7 @@ SQL Managed Instance requires **two separate diagnostic settings**: one on the m
 
 Send both diagnostic settings to the Log Analytics workspace `la-microhack-sql` in `rg-microhack-sql-2026`. Save and wait 5-10 minutes before expecting events in Log Analytics.
 
-> **Note:** Categories such as `Timeouts`, `Blocks`, `Deadlocks`, `DatabaseWaitStatistics`, and `AutomaticTuning` are available only on **Azure SQL Database** and do not apply to SQL Managed Instance. If you need blocking and deadlock data on SQL MI, use engine-level DMVs (e.g., `sys.dm_exec_requests`, `sys.dm_tran_locks`) or Extended Events instead.
-
 ![Diagnostic categories selected](../../Images/c4-step-03-database-diag-settings-cat-selected.png)
-
-If you prefer Azure CLI, use the same resource names from Solution 1. Note that you need **two commands** — one for the instance and one for the database:
-
-```bash
-# Instance-level diagnostic setting (ResourceUsageStats + metrics)
-az monitor diagnostic-settings create \
-  --name diag-sqlmi-instance-to-la \
-  --resource $(az sql mi show \
-      --resource-group rg-microhack-sql-2026 \
-      --name sqlmi-microhack-2026 \
-      --query id -o tsv) \
-  --workspace $(az monitor log-analytics workspace show \
-      --resource-group rg-microhack-sql-2026 \
-      --workspace-name la-microhack-sql \
-      --query id -o tsv) \
-  --logs '[
-    {"category":"ResourceUsageStats","enabled":true}
-  ]' \
-  --metrics '[{"category":"AllMetrics","enabled":true}]'
-
-# Database-level diagnostic setting (per migrated database)
-az monitor diagnostic-settings create \
-  --name diag-sqlmi-db-to-la \
-  --resource $(az sql mi show \
-      --resource-group rg-microhack-sql-2026 \
-      --name sqlmi-microhack-2026 \
-      --query id -o tsv)/databases/AdventureWorks2019 \
-  --workspace $(az monitor log-analytics workspace show \
-      --resource-group rg-microhack-sql-2026 \
-      --workspace-name la-microhack-sql \
-      --query id -o tsv) \
-  --logs '[
-    {"category":"SQLInsights","enabled":true},
-    {"category":"QueryStoreRuntimeStatistics","enabled":true},
-    {"category":"QueryStoreWaitStatistics","enabled":true},
-    {"category":"Errors","enabled":true}
-  ]'
-```
-
-![Log Analytics workspace destination](../../Images/c4-step-04-database-diag-settings-configured.png)
 
 ## Step 2 — Generate workload pressure
 
