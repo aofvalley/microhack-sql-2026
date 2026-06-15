@@ -4,12 +4,20 @@
 
 > **Lab scenario:** Users report that the migrated CRM workload is slow after recent stored procedure changes. You will create monitoring signal, find the highest CPU consumers, inspect portal metrics and Log Analytics records, then apply Query Store and tuning features to validate the fix.
 
-> **Timing:** Allow 45–60 minutes for Steps 1–8. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
+> **Timing:** Allow 45–60 minutes for Steps 1–7. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
 
 ## Step 0 — Establish admin
-First of all we need to define the administator of the managed instance. Select you own user here:
+First of all we need to define the administator of the managed instance. Select you own user here,as the administrador of the Managed Instance:
 
 ![SQL MI diagnostic settings blade](../../Images/c4-step-0-set-admin.png)
+
+If the SQL Managed instance does not contain a database named AdventureWorks2019, please, find a dacpac file in the docs folder, download it and import the dacpac in the Managed Instance:
+
+![Import dacpac](../../Images/c4-step-0-dacpac.png)
+
+Follow the wizard and restore the dacpac file into the Managed Instance:
+
+![Import dacpac2](../../Images/c4-step-0-dacpac2.png)
 
 
 ## Step 1 — Enable diagnostic settings on SQL MI
