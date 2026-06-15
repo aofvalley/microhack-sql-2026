@@ -33,12 +33,13 @@ IaaS VM; the empty Azure SQL logical server is the migration target you will fil
 
 | Component | Name | Notes |
 |---|---|---|
-| Resource group | `rg-mh-user01` | Spain Central |
+| Resource group | `rg-mh-user01` | Sweden Central |
 | Source VM | `mhu01-srcvm19` | SQL Server 2019 Developer on Windows Server 2022, `Standard_D4as_v5` |
 | Source NSG | `mhu01-sql-nsg` | RDP 3389 from your client IP only; 1433 intra-VNet |
 | VNet / subnet | `mhu01-vnet` / `snet-sql` | `10.0.0.0/16` / `10.0.1.0/24` |
 | Bastion | `mhu01-bastion` | Secure browser RDP to the VM (no public RDP needed) |
-| **Migration target** | `mhu01-sqlsrv-<suffix>` | Azure SQL logical server, **Spain Central**, **SQL authentication** (empty until Challenge 2) |
+| Key vault | `mhu01kv<suffix>` | Stores the **VM username and password** used to sign in over Bastion |
+| **Migration target** | `mhu01-sqlsrv-<suffix>` | Azure SQL logical server, **Sweden Central**, **SQL authentication** (empty until Challenge 2) |
 
 ### The source instance
 
@@ -88,6 +89,11 @@ appliance (and, if you also want the quick readiness-only check, to run SSMS the
 2. Confirm **Using Bastion: mhu01-bastion** shows **Provisioning State: Succeeded**.
 3. Authentication type **VM Password**, enter the VM username/password, then **Connect**.
 
+> **Where are the VM credentials?** The VM **username and password are stored in the lab Key vault**
+> (`mhu01kv<suffix>` in `rg-mh-user01`). Open the Key vault → **Objects → Secrets** to read them
+> (e.g. the username defaults to `sqladmin`). You reuse this same password later for the Azure Migrate
+> Windows credential in **Step 2 (9a)**.
+
 ![Bastion connect blade for mhu01-srcvm19](../../Images/c1-step-04-bastion-connect.png)
 
 > **Alternative:** if your client IP is allowed on `mhu01-sql-nsg`, you can RDP directly with
@@ -113,7 +119,7 @@ performance data for 7–30 days for accurate right-sizing.
 
 2. Open/use the pre-provisioned Azure Migrate project `mhu01-migrate` that already exists in
    `rg-mh-user01`. Confirm the **subscription**, **resource group**, **project name** and **geography**
-   (`Spain`).
+   (`Sweden`).
 
    ![Azure Migrate project details form](../../Images/c1-step-2b-azure-migrate-create-project.png)
 
@@ -174,7 +180,7 @@ performance data for 7–30 days for accurate right-sizing.
    | Source type | **Windows Server** |
    | Friendly name | `SQLServerOnPrem` |
    | Username | `sqladmin`  *(local account, no `domain\`)* |
-   | Password | *the VM password* |
+   | Password | *the VM password — read it from the lab Key vault (`mhu01kv<suffix>` → **Secrets**), the same one you used for Bastion in Step 1* |
 
    > **Gotcha (the #1 validation failure):** a *SQL Server login* will **not** work here — Azure Migrate
    > authenticates to the OS over WMI/WinRM, so it needs a **local Windows Administrator**. Reuse the
@@ -221,9 +227,29 @@ performance data for 7–30 days for accurate right-sizing.
    > (`net user sqladmin`). Enter the username as plain `sqladmin` (no `domain\` or `.\`).
 
    **9c — Add the SQL credential (for the database assessment).** The Windows credential validates the
-   *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. Add one
-   in the appliance's SQL credentials section — Windows-integrated (`sqladmin`, already `sysadmin`) or
-   SQL auth (`sqladmin`). Without it the host is discovered but the databases are not.
+   *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. You have
+   two options:
+
+   - **Windows-integrated** — reuse `sqladmin` (already a `sysadmin` on the instance). No extra setup.
+   - **SQL authentication** — create a dedicated SQL login for discovery. Connect to the instance with
+     SSMS on the VM (over Bastion) and run the snippet below in a **new query** window, then register
+     `migrate_reader` / your password as a **SQL Server** credential in the appliance:
+
+   ```sql
+   -- Run on the source instance (localhost) as sysadmin to create a SQL login for Azure Migrate
+   USE [master];
+   GO
+   CREATE LOGIN [migrate_reader] WITH PASSWORD = 'Ch4ngeMe!StrongP@ss';
+   GO
+   -- Minimum permissions Azure Migrate needs to read SQL metadata for the assessment
+   ALTER SERVER ROLE [sysadmin] ADD MEMBER [migrate_reader];
+   GO
+   ```
+
+   > Use a strong password and change it from the placeholder above. `sysadmin` is the simplest grant
+   > for the lab; in production you can scope it down (e.g. `VIEW SERVER STATE` + `CONNECT SQL` plus
+   > `db_datareader` per database). Without a SQL credential the host is discovered but the databases
+   > are not.
 
    **9d — Discover.** Let the appliance **discover** the instance and start collecting. A short window
    (15–30 min) is enough for this lab. **Assessments stay disabled until discovery has populated the
@@ -271,7 +297,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
    | Setting | Value |
    |---|---|
-   | Default target location | **Spain Central** (matches the Azure SQL target region) |
+   | Default target location | **Sweden Central** (matches the Azure SQL target region) |
    | Default environment | Production |
    | Currency / Program | Euro (€) / Pay-As-You-Go |
    | Default savings option | 1 year reserved as applicable |
@@ -281,7 +307,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
    | Azure Hybrid Benefit (Windows + SQL) | **Yes** (bring existing licenses) |
    | Include Microsoft Defender for cloud | Yes |
 
-   ![Create assessment General tab - Spain Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2r-create-assessment-general.png)
+   ![Create assessment General tab - Sweden Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2r-create-assessment-general.png)
 
 4. **Review + Create assessment.** Confirm the summary and click **Create assessment**. The assessment
    evaluates the workloads against the recommended Azure SQL targets — **Azure SQL MI**, **Azure SQL
@@ -319,7 +345,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
 ### 2.3 Capture SKU recommendation and cost
 
-The recalculated `microassessment26` (Spain Central, Azure Hybrid Benefit + Defender) now reports
+The recalculated `microassessment26` (Sweden Central, Azure Hybrid Benefit + Defender) now reports
 **Discovery success 100%** and a full readiness + sizing + cost result. The **Overview** lists 1 server,
 1 SQL instance and 2 user databases, and recommends the modernization path to **Azure SQL Managed
 Instance** at **€323.40/mo**:
@@ -435,32 +461,14 @@ the resource group. Note its properties now so the migration step is smooth:
 | Property | Value | Why it matters for Challenge 2 |
 |---|---|---|
 | Server name | `mhu01-sqlsrv-<suffix>.database.windows.net` | Target FQDN for DMS. |
-| Location | Spain Central | Provision DMS in/near this region. |
+| Location | Sweden Central | Provision DMS in/near this region. |
 | Authentication | **SQL authentication** | DMS connects to the target with a **SQL login** (`sqladmin`); the migration login is created on the target as described in Challenge 2. |
 | SQL admin login | `sqladmin` | The server administrator login for the target logical server. |
 | Databases | none yet | The target is empty — Challenge 2 creates the destination database and migrates into it. |
 
 ---
 
-## Step 5 — Build the remediation backlog
-
-Turn the readiness findings into a prioritized backlog. Tag each row with the
-**official rule name** so reviewers can trace every item back to the
-[assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
-
-| Finding | Source DB | Severity | Decision | When |
-|---|---|---|---|---|
-| Memory-optimized tables | `WideWorldImporters` | Blocker | Choose Business Critical target tier **or** convert the memory-optimized tables to disk-based before migrating to General Purpose | Before Challenge 2 |
-| Compat level 110 | `AdventureWorks2019` | Warning | Raise compat level on the target after migration once validated | After Challenge 2 |
-| Compat level 120 | `WideWorldImporters` | Warning | Raise compat level post-cutover | After Challenge 2 |
-| `WindowsAuthentication` | instance | Warning | Re-create needed principals as Microsoft Entra users on the target | During Challenge 2 |
-
-Persist this backlog as `assessment-backlog.md` (or a sheet) next to the exported Azure Migrate
-assessment.
-
----
-
-## Step 6 — (Optional) Command-line assessment without the appliance
+## Step 5 — (Optional) Command-line assessment without the appliance
 
 If you don't want to deploy the Azure Migrate appliance, you can run an assessment from the command
 line with the **`Az.DataMigration` PowerShell module / `az datamigration` Azure CLI**, which uses the
@@ -471,65 +479,6 @@ SKU/cost sizing that Azure Migrate adds):
 2. Run the SQL assessment against the local instance and export the report to JSON/CSV.
 3. Reference:
    [Migrate databases at scale using automation (PowerShell / Azure CLI)](https://learn.microsoft.com/en-us/azure/dms/migration-dms-powershell-cli).
-
----
-
-## Success criteria checklist
-
-- [ ] You connected to `mhu01-srcvm19` (Bastion) and ran the **Azure Migrate** **Azure SQL Database**
-      assessment for the in-scope databases, with findings mapped to official rule IDs.
-- [ ] **SKU recommendation + monthly cost** captured per database from the Azure Migrate assessment.
-- [ ] Tier-impacting finding (In-Memory OLTP in `WideWorldImporters`) identified and a target
-      decision recorded.
-- [ ] *(Optional, single instance)* SSMS migration-component readiness assessment run as a quick
-      cross-check of the same findings.
-- [ ] Prioritized remediation backlog written (fix-before vs fix-after Challenge 2).
-- [ ] Assessment report exported and stored with the lab artifacts.
-
----
-
-## Annex — Useful T-SQL discovery queries
-
-Run these on the source instance (`localhost` on the VM) to sanity-check the Azure Migrate findings:
-
-```sql
--- Databases, size, recovery model, compat level
-SELECT
-    d.name,
-    d.database_id,
-    d.state_desc,
-    d.recovery_model_desc,
-    d.compatibility_level,
-    CAST(SUM(mf.size) * 8.0 / 1024 AS DECIMAL(10,2)) AS size_mb
-FROM sys.databases d
-JOIN sys.master_files mf ON d.database_id = mf.database_id
-WHERE d.database_id > 4
-GROUP BY d.name, d.database_id, d.state_desc, d.recovery_model_desc, d.compatibility_level
-ORDER BY size_mb DESC;
-
--- Memory-optimized (In-Memory OLTP) tables — tier-gated on Azure SQL Database
-SELECT DB_NAME() AS db, COUNT(*) AS memory_optimized_tables
-FROM sys.tables WHERE is_memory_optimized = 1;
-
--- SQL Agent jobs (not supported on Azure SQL DB)
-USE msdb;
-SELECT name, enabled, date_created FROM dbo.sysjobs;
-
--- Linked servers (not supported on Azure SQL DB)
-SELECT name, product, provider, data_source FROM sys.servers WHERE server_id > 0;
-
--- CLR assemblies (not supported on Azure SQL DB)
-SELECT name, permission_set_desc, is_user_defined FROM sys.assemblies WHERE is_user_defined = 1;
-
--- Cross-database references (not supported on Azure SQL DB)
-SELECT DISTINCT
-    referencing_schema_name = OBJECT_SCHEMA_NAME(d.referencing_id),
-    referencing_object_name = OBJECT_NAME(d.referencing_id),
-    referenced_database_name = d.referenced_database_name
-FROM sys.sql_expression_dependencies d
-WHERE d.referenced_database_name IS NOT NULL
-  AND d.referenced_database_name <> DB_NAME();
-```
 
 ---
 
