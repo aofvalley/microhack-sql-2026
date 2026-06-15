@@ -38,7 +38,7 @@ Common settings:
 | `startUserIndex` | `1` | First student index. |
 | `location` | `westeurope` | Confirm quota and service availability. |
 | `namePrefix` | `mh` | Used in resource and user names. |
-| `deploySourceVm` | `true` | Required for the SQL Server 2019 source. |
+| `deploySourceVm` | `true` | Required for both SQL Server source VMs (SQL 2019 + SQL 2025). |
 | `deploySqlMi` | `true` | Required for Challenge 3; slow and costly. |
 | `vmSize` | `Standard_D4s_v5` | Default VM size. |
 | `autoShutdownTime` | `1900` | UTC VM auto-shutdown time. |
@@ -86,6 +86,12 @@ Add `-WhatIf` to preview without deploying. Useful switches: `-CreateUsers` (cre
 + RBAC), `-DeploySqlMi false` (skip Managed Instance), `-SecurityControlIgnore` (tag SQL/MI to
 satisfy MCAPS deny policies when testing in a Microsoft-internal tenant).
 
+> **Microsoft Entra ID authentication on Azure SQL.** The Azure SQL logical server is configured
+> for **both** SQL authentication and **Microsoft Entra ID** authentication. By default `deploy.ps1`
+> sets the signed-in user as the server's Entra ID administrator; pass `-SqlEntraAdmin <UPN>` to use
+> a different account. If the Entra admin cannot be resolved (for example a Graph/CAE error), the
+> deployment degrades gracefully to SQL-only authentication so a large rollout is not blocked.
+
 Recommended rollout:
 
 1. Deploy `-UserCount 1 -DeploySqlMi false` to validate the path.
@@ -103,7 +109,7 @@ In the UI:
 
 1. Select the tenant and subscription.
 2. Choose `location`, `namePrefix`, `userCount`, and `startUserIndex`.
-3. Decide whether to deploy the source VM and SQL MI.
+3. Decide whether to deploy the source VMs and SQL MI.
 4. Review the generated plan.
 5. Start deployment and monitor progress.
 
@@ -133,7 +139,7 @@ The deployment model includes one Entra ID user per student, created by `scripts
 
 + **Contributor** — manage resources inside their own resource group.
 + **Key Vault Secrets User** — read the lab credentials stored in their per-student Key Vault.
-+ **Virtual Machine Administrator Login** — sign in to the source VM through Bastion.
++ **Virtual Machine Administrator Login** — sign in to the source VMs through Bastion.
 
 Each user is created with a **temporary password** (default `Temporal01!`, override with
 `-InitialPassword`) and **must change it at first sign-in** (`forceChangePasswordNextSignIn=true`).
@@ -187,14 +193,32 @@ For a sample of students, verify:
 | --- | --- |
 | Student sign-in | Student can sign in to the tenant. |
 | RG access | Student sees only the expected assigned lab resources. |
-| Bastion RDP | Student can open browser-based RDP to the source VM. |
-| VM setup | SSMS 20, Azure CLI, VS Code, and MSSQL extension are installed. |
-| SQL source | AdventureWorks2019 and WideWorldImporters are restored. |
-| Azure SQL logical server | Public endpoint and firewall are configured; no target DB is pre-created. |
+| Bastion RDP | Student can open browser-based RDP to both source VMs. |
+| VM setup | SSMS 20, Azure CLI, VS Code, and MSSQL extension are installed on both VMs. |
+| SQL source | AdventureWorks2019 and WideWorldImporters are restored on both VMs. |
+| Azure SQL logical server | Public endpoint, firewall and SQL + Microsoft Entra ID authentication are configured; no target DB is pre-created. |
 | SQL MI | Present only when `deploySqlMi=true`; public endpoint enabled. |
-| Auto-shutdown | Source VM auto-shutdown is configured for `1900` UTC. |
+| Auto-shutdown | Both source VMs have auto-shutdown configured for `1900` UTC. |
 
-## 10. Tear down
+## 10. Power VMs off and on without destroying them
+
+If you deploy the environments ahead of time (for example the evening before the lab) and want to
+power the VMs down overnight to save cost, use the non-destructive cohort scripts. They only
+start / `deallocate` the VMs — resource groups, disks, Azure SQL and Managed Instances are kept.
+
+```powershell
+# End of the day: stop (deallocate) all student VMs across rg-<prefix>-user*
+pwsh .\scripts\stop-labs.ps1 -SubscriptionId <id> -Prefix mh
+
+# Next morning, before attendees arrive: start them again
+pwsh .\scripts\start-labs.ps1 -SubscriptionId <id> -Prefix mh
+```
+
+Both scripts accept `-StartIndex` / `-UserCount` to target a range, and `-Wait` to block until the
+operation finishes. The source VMs also auto-shutdown at `1900` UTC, so run `start-labs.ps1` each
+morning. Managed Instances cannot be deallocated and keep billing while they exist.
+
+## 11. Tear down
 
 After the lab:
 

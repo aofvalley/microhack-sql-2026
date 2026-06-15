@@ -62,6 +62,24 @@ pwsh .\scripts\create-users.ps1 `
   -AssignRbac
 ```
 
+## Start / stop labs (non-destructive)
+
+Power all student VMs on or off without deleting anything — useful when you deploy the labs ahead of
+time and leave them running across multiple days.
+
+```powershell
+# Stop (deallocate) every student VM under rg-<prefix>-user*
+pwsh .\scripts\stop-labs.ps1 -SubscriptionId '<your-subscription-id>' -Prefix 'mh'
+
+# Start (power on) every student VM
+pwsh .\scripts\start-labs.ps1 -SubscriptionId '<your-subscription-id>' -Prefix 'mh'
+```
+
+Both scripts auto-discover `rg-<prefix>-user*` groups (or use `-StartIndex` / `-UserCount` for a
+range) and start/`deallocate` every VM in them. Add `-Wait` to block until the operation finishes.
+Each script starts/stops **both** source VMs (SQL 2019 and SQL 2025) per student. Managed Instances
+are not affected (they cannot be deallocated).
+
 ## Cleanup
 
 Delete a known count:
@@ -102,12 +120,15 @@ pwsh .\scripts\cleanup.ps1 -SubscriptionId '<your-subscription-id>' -Prefix 'mh'
 | deploy | SetupScriptUri | optional | Override the staged setup-script delivery with your own reachable URL. Omit to auto-stage via storage + user-delegation SAS. |
 | deploy | StagingStorageAccount | optional | Override the auto-generated staging storage account name (3-24 lowercase alnum). |
 | deploy | SecurityControlIgnore | false | Tag SQL/MI with `SecurityControl=Ignore` for MCAPS deny-policy bypass when testing. |
+| deploy | SqlEntraAdmin | signed-in user | UPN to set as the Azure SQL server's Microsoft Entra ID administrator (alongside SQL auth). Falls back to SQL-only if it cannot be resolved. |
 | deploy | CreateUsers, SkipUsers, WhatIf | false | User creation runs after a successful deploy unless skipped. |
 | create-users | TenantDomain | required | Verified Entra domain for UPNs. |
 | create-users | Password | generated | Existing users are not reset; blank password in CSV means skipped existing user. |
 | create-users | AssignRbac | false | Adds Reader and Virtual Machine Administrator Login per user RG. |
 | cleanup | All | false | Discover and delete every `rg-<prefix>-user*` group (ignores UserCount/StartIndex). |
 | cleanup | DeleteUsers, TenantDomain, Force | false | `TenantDomain` is required when deleting users; `Force` skips confirmation. |
+| start-labs/stop-labs | SubscriptionId, Prefix | required / mh | Discover `rg-<prefix>-user*` and start / deallocate every VM. |
+| start-labs/stop-labs | StartIndex, UserCount, Wait | auto / false | Target an index range; `-Wait` blocks until the operation finishes. |
 
 ## Bicep parameters file
 

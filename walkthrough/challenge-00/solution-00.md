@@ -15,13 +15,15 @@ provisioned ahead of time. Per user it contains:
 - An **Entra ID user** `<prefix>user<NN>@<tenant>` with a **temporary** password (default
   `Temporal01!`, `forceChangePasswordNextSignIn = true`) and MFA registration at first sign-in.
 - **RBAC on the RG:** Contributor + Key Vault Secrets User + Virtual Machine Administrator Login.
-- A **source VM** (Windows Server 2022 + SQL Server 2019 Developer) with SSMS 20, Azure CLI and
-  VS Code, plus **AdventureWorks2019** and **WideWorldImporters** restored and online.
-- **Azure Bastion** for VM access (public networking; no private endpoints).
+- **Two source VMs**: VM 1 (Windows Server 2022 + SQL Server 2019 Developer, `…-srcvm19`) is the
+  DMS source for Challenge 2; VM 2 (Windows Server 2025 + SQL Server 2025 Enterprise Developer,
+  `…-srcvm25`) is the MI Link source for Challenge 3. Both ship with SSMS 20, Azure CLI and VS Code,
+  plus **AdventureWorks2019** and **WideWorldImporters** restored and online.
+- **Azure Bastion** for access to both VMs (public networking; no private endpoints).
 - A per-user **Key Vault** holding `student-username/password`, `vm-admin-username/password`,
   `sql-admin-login/password`.
-- An **Azure SQL logical server** (DMS target, Challenge 2) and an **Azure SQL Managed Instance**
-  (MI Link target, Challenge 3), both public-endpoint.
+- An **Azure SQL logical server** (DMS target, Challenge 2; SQL + Microsoft Entra ID authentication)
+  and an **Azure SQL Managed Instance** (MI Link target, Challenge 3), both public-endpoint.
 - A per-user **Log Analytics workspace** (`<prefix>u<NN>-law`) for diagnostics/telemetry.
 
 ## Provisioning
@@ -31,7 +33,7 @@ The infrastructure and users are deployed and removed with the automation in
 by the number of attendees and supports adding a single extra environment on demand.
 
 > ℹ️ **Deployment model:** each attendee gets a fully isolated environment — one resource group
-> with its own Bastion, Key Vault, source VM, Azure SQL server, SQL Managed Instance and Log
+> with its own Bastion, Key Vault, two source VMs, Azure SQL server, SQL Managed Instance and Log
 > Analytics workspace, plus a dedicated Entra ID user. See
 > [`infra/README.md`](../../infra/README.md) for the two deployment paths (CLI and web app) and
 > the full parameter reference.
@@ -53,8 +55,8 @@ registered. The temporary password no longer works.
 
 Search for **Resource groups** and open `rg-mhlab-user<NN>`.
 
-**Expected result:** exactly **one** resource group is visible, containing the source VM, Azure
-Bastion, the Azure SQL logical server, the SQL Managed Instance, the Key Vault and the Log
+**Expected result:** exactly **one** resource group is visible, containing the two source VMs,
+Azure Bastion, the Azure SQL logical server, the SQL Managed Instance, the Key Vault and the Log
 Analytics workspace. Seeing more than one group means the RBAC scope is wrong — see
 [Troubleshooting](#troubleshooting).
 
@@ -68,21 +70,22 @@ Open the Key Vault `mhlabu01kv…` → **Objects → Secrets** and read the valu
 Vault Secrets User** role. The password used to connect to the VM and to the source SQL Server is
 `vm-admin-password`.
 
-### Step 3 — Connect to the source VM with Bastion
+### Step 3 — Connect to the source VMs with Bastion
 
-Open `mhlabu01-srcvm` → **Connect → Bastion** and sign in with `mhadmin` and the
-`vm-admin-password`.
+Open `mhlabu01-srcvm19` → **Connect → Bastion** and sign in with `mhadmin` and the
+`vm-admin-password`. Repeat for `mhlabu01-srcvm25` (the SQL Server 2025 VM).
 
-**Expected result:** the Windows Server 2022 desktop of the source VM opens in a new browser tab.
+**Expected result:** the Windows desktop of each source VM opens in a new browser tab — Windows
+Server 2022 for `srcvm19` and Windows Server 2025 for `srcvm25`.
 
 ### Step 4 — Connect to the source SQL Server with SSMS
 
-Inside the VM, open SSMS, connect to `localhost` (Windows Authentication, or SQL auth with `sa` /
+Inside a VM, open SSMS, connect to `localhost` (Windows Authentication, or SQL auth with `sa` /
 `sqladmin` and `vm-admin-password`), and expand **Databases**.
 
 **Expected result:** SSMS connects and both **AdventureWorks2019** and **WideWorldImporters** are
-present and **online**. If they are missing, the Custom Script Extension restore is still running
-or failed — check `C:\Lab\setup-source-vm.log` on the VM.
+present and **online** on both VMs. If they are missing, the Custom Script Extension restore is
+still running or failed — check `C:\Lab\setup-source-vm.log` on the VM.
 
 ### Step 5 — Identify the Azure SQL server (DMS target)
 

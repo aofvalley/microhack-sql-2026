@@ -12,6 +12,7 @@ param(
     [object]$VmAdminPassword,
     [object]$SqlAdminPassword,
     [string]$InitialPassword = 'Temporal01!',
+    [string]$SqlEntraAdmin,
     [ValidateSet('true', 'false', '$true', '$false', '1', '0', 'yes', 'no')]
     [string]$DeploySqlMi = 'true',
     [ValidateSet('true', 'false', '$true', '$false', '1', '0', 'yes', 'no')]
@@ -247,6 +248,8 @@ function Add-GuideUserSection {
     $nn = $idx.ToString('00')
     $rg = if ($User.PSObject.Properties.Name -contains 'resourceGroup') { $User.resourceGroup } else { "rg-$Prefix-user$nn" }
     $vm = if ($User.PSObject.Properties.Name -contains 'vmName') { $User.vmName } else { '' }
+    $vm2019 = if ($User.PSObject.Properties.Name -contains 'vmName2019') { $User.vmName2019 } else { $vm }
+    $vm2025 = if ($User.PSObject.Properties.Name -contains 'vmName2025') { $User.vmName2025 } else { '' }
     $bastion = if ($User.PSObject.Properties.Name -contains 'bastionName') { $User.bastionName } else { '' }
     $sqlServer = if ($User.PSObject.Properties.Name -contains 'sqlServerFqdn') { $User.sqlServerFqdn } else { '' }
     $sqlMi = if ($User.PSObject.Properties.Name -contains 'sqlMiFqdn') { $User.sqlMiFqdn } else { '' }
@@ -256,7 +259,8 @@ function Add-GuideUserSection {
     $Lines.Add("## User $nn") | Out-Null
     $Lines.Add('') | Out-Null
     $Lines.Add("- Resource group: ``$rg``") | Out-Null
-    $Lines.Add("- VM name: ``$vm``") | Out-Null
+    $Lines.Add("- Source VM (SQL Server 2019, DMS source): ``$vm2019``") | Out-Null
+    $Lines.Add("- Source VM (SQL Server 2025, MI Link source): ``$vm2025``") | Out-Null
     $Lines.Add("- Bastion name: ``$bastion``") | Out-Null
     $Lines.Add("- SQL Server FQDN: ``$sqlServer``") | Out-Null
     $Lines.Add("- SQL MI FQDN: ``$sqlMi``") | Out-Null
@@ -267,7 +271,7 @@ function Add-GuideUserSection {
     $Lines.Add("- SQL admin login: ``$SqlAdminUser``") | Out-Null
     $Lines.Add("- SQL admin password: ``$SqlAdminPasswordPlain``") | Out-Null
     $Lines.Add('') | Out-Null
-    $Lines.Add('Bastion connection: Azure Portal > resource group > VM > Connect > Bastion, then sign in with the VM admin credentials above or the assigned lab user.') | Out-Null
+    $Lines.Add('Bastion connection: Azure Portal > resource group > VM (SQL 2019 or SQL 2025) > Connect > Bastion, then sign in with the VM admin credentials above or the assigned lab user.') | Out-Null
     $Lines.Add('') | Out-Null
 }
 
@@ -361,6 +365,38 @@ try {
         $effectiveSetupUri = 'https://example.invalid/setup-source-vm.ps1'
     }
 
+    # Resolve the Microsoft Entra ID administrator for each Azure SQL server, so the
+    # logical server accepts BOTH Entra ID and SQL (username/password) authentication.
+    # Defaults to the deploying (signed-in) user; override with -SqlEntraAdmin <UPN>.
+    # Best-effort: if Microsoft Graph cannot be reached (e.g. CAE token challenge),
+    # fall back to SQL-only authentication so the deployment still succeeds.
+    $sqlEntraAdminLogin = ''
+    $sqlEntraAdminObjectId = ''
+    if (-not $WhatIf) {
+        if (-not [string]::IsNullOrWhiteSpace($SqlEntraAdmin)) {
+            $u = Invoke-Az -Arguments @('ad', 'user', 'show', '--id', $SqlEntraAdmin, '--query', '{id:id,upn:userPrincipalName}', '--output', 'json') -AllowFailure
+            if ($u.ExitCode -eq 0) {
+                $obj = ($u.Output -join '') | ConvertFrom-Json
+                $sqlEntraAdminObjectId = $obj.id
+                $sqlEntraAdminLogin = if ($obj.upn) { $obj.upn } else { $SqlEntraAdmin }
+            }
+        }
+        else {
+            $me = Invoke-Az -Arguments @('ad', 'signed-in-user', 'show', '--query', '{id:id,upn:userPrincipalName}', '--output', 'json') -AllowFailure
+            if ($me.ExitCode -eq 0) {
+                $obj = ($me.Output -join '') | ConvertFrom-Json
+                $sqlEntraAdminObjectId = $obj.id
+                $sqlEntraAdminLogin = $obj.upn
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($sqlEntraAdminObjectId)) {
+            Write-Host "Azure SQL Microsoft Entra ID admin: $sqlEntraAdminLogin"
+        }
+        else {
+            Write-Host 'Could not resolve a Microsoft Entra ID admin for Azure SQL (Graph unavailable or no -SqlEntraAdmin given). Azure SQL will use SQL authentication only.'
+        }
+    }
+
     # Pass ALL parameters via a parameters file. On Windows, az is a batch
     # wrapper (az.cmd) routed through cmd.exe, which re-parses inline values and
     # mangles special characters (e.g. & | < > ^) in generated passwords. Using
@@ -379,6 +415,8 @@ try {
         vmSize         = @{ value = 'Standard_D4s_v5' }
         autoShutdownTime = @{ value = '1900' }
         setupScriptUri = @{ value = $effectiveSetupUri }
+        sqlEntraAdminLogin = @{ value = $sqlEntraAdminLogin }
+        sqlEntraAdminObjectId = @{ value = $sqlEntraAdminObjectId }
     }
 
     if ($SecurityControlIgnore) {

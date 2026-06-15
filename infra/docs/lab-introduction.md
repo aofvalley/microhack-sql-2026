@@ -8,13 +8,15 @@ it to brief a cohort; attendees use it to get oriented before Challenge 0.
 
 ## What this lab is
 
-A hands-on **SQL Server modernization** MicroHack. You start from a **SQL Server 2019** instance
-running on a Windows virtual machine (the *source*) and **migrate it to Azure** using the tools
-Microsoft recommends today:
+A hands-on **SQL Server modernization** MicroHack. You start from **two SQL Server source
+instances** running on Windows virtual machines (the *sources*) and **migrate them to Azure** using
+the tools Microsoft recommends today:
 
 - **Assess** the source with **SSMS** and **Azure Migrate**.
-- **Migrate to Azure SQL Database** with **Azure Database Migration Service (DMS)**.
-- **Migrate to Azure SQL Managed Instance** with **Managed Instance (MI) Link**.
+- **Migrate to Azure SQL Database** with **Azure Database Migration Service (DMS)**, from the
+  **SQL Server 2019** VM.
+- **Migrate to Azure SQL Managed Instance** with **Managed Instance (MI) Link**, from the
+  **SQL Server 2025** VM.
 
 Every attendee works in a **fully isolated, personal environment** — one Azure resource group per
 person — so nobody can interfere with anyone else. Networking is **public by design** to keep the
@@ -24,10 +26,10 @@ focus on SQL modernization rather than on private networking setup.
 
 | Challenge | What you do | Primary resource |
 | --- | --- | --- |
-| **0 — Introduction & access** | Sign in, reach your isolated resource group, connect to the source SQL Server, and locate both migration targets. | Identity, portal, Key Vault, Bastion, source VM |
-| **1 — Assess the source** | Analyze the SQL Server 2019 workload (readiness + sizing) with SSMS and Azure Migrate. | Source VM |
-| **2 — Migrate to Azure SQL Database** | Run an online migration with DMS into an Azure SQL Database you create. | Azure SQL logical server |
-| **3 — Migrate to Azure SQL Managed Instance** | Replicate and migrate with Managed Instance Link. | Azure SQL Managed Instance |
+| **0 — Introduction & access** | Sign in, reach your isolated resource group, connect to the source SQL Servers, and locate both migration targets. | Identity, Key Vault, Bastion, source VMs |
+| **1 — Assess the source** | Analyze the SQL Server 2019 workload (readiness + sizing) with SSMS and Azure Migrate. | Source VM (SQL 2019) |
+| **2 — Migrate to Azure SQL Database** | Run an online migration with DMS into an Azure SQL Database you create. | Source VM (SQL 2019) + Azure SQL logical server |
+| **3 — Migrate to Azure SQL Managed Instance** | Replicate and migrate with Managed Instance Link. | Source VM (SQL 2025) + Azure SQL Managed Instance |
 | **4 — Validate & modernize** | Compare source and targets; validate data and apps. | All targets |
 | **5 — Cleanup & review** | Tear down and review what you learned. | Resource group / facilitator |
 
@@ -55,16 +57,17 @@ containing everything needed for all challenges:
 | Component | Role in the lab |
 | --- | --- |
 | Entra ID user + scoped RBAC | Your identity, limited to your own resource group. |
-| Source VM (Windows Server 2022 + SQL Server 2019) | The migration **source**; ships with SSMS, Azure CLI, VS Code and the sample databases restored. |
-| Azure Bastion | Browser-based RDP to the source VM (no public RDP client). |
-| Azure SQL logical server | **Target** of the DMS migration (Challenge 2). |
+| Source VM 1 (Windows Server 2022 + SQL Server 2019) | The DMS migration **source** (Challenge 2); ships with SSMS, Azure CLI, VS Code and the sample databases restored. |
+| Source VM 2 (Windows Server 2025 + SQL Server 2025) | The MI Link migration **source** (Challenge 3); same databases and tooling as VM 1. |
+| Azure Bastion | Browser-based RDP to both source VMs (no public RDP client). |
+| Azure SQL logical server | **Target** of the DMS migration (Challenge 2); SQL + Microsoft Entra ID authentication. |
 | Azure SQL Managed Instance | **Target** of the MI Link migration (Challenge 3). |
 | Key Vault | Holds your VM and SQL credentials; you read them with Key Vault Secrets User. |
 | Log Analytics workspace | Collects diagnostics/telemetry for your lab resources. |
 
-The source VM already has **AdventureWorks2019** and **WideWorldImporters** restored and **online**
-— these are your source workload. For the full design (network, NSGs and subscription isolation),
-see [architecture.md](architecture.md).
+Both source VMs already have **AdventureWorks2019** and **WideWorldImporters** restored and
+**online** — these are your source workload. For the full design (network, NSGs and subscription
+isolation), see [architecture.md](architecture.md).
 
 ## Who does what
 

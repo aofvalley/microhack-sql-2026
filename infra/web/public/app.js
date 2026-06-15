@@ -28,7 +28,7 @@ function appendLog(text, stream = 'stdout') {
 
 function updateEstimate() {
   const students = Math.min(50, Math.max(1, Number(userCount.value || 1)));
-  const sqlVm = students * 0.38;
+  const sqlVm = students * 0.76;
   const bastion = 0.19;
   const sqlMi = deploySqlMi.checked ? students * 0.75 : 0;
   const total = sqlVm + bastion + sqlMi;

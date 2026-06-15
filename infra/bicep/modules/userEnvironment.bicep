@@ -41,6 +41,12 @@ param autoShutdownTime string = '1900'
 @description('Extra resource tags for policy compliance, e.g. SecurityControl=Ignore.')
 param resourceTags object = {}
 
+@description('Microsoft Entra ID administrator login (UPN or display name) for the Azure SQL server. Empty leaves SQL authentication only.')
+param sqlEntraAdminLogin string = ''
+
+@description('Microsoft Entra ID administrator object id (principal/SID) for the Azure SQL server.')
+param sqlEntraAdminObjectId string = ''
+
 module logAnalytics 'logAnalytics.bicep' = {
   name: 'logAnalytics'
   params: {
@@ -68,11 +74,36 @@ module bastion 'bastion.bicep' = if (deploySourceVm) {
   }
 }
 
-module sourceVm 'sourceVm.bicep' = if (deploySourceVm) {
-  name: 'sourceVm'
+module sourceVm2019 'sourceVm.bicep' = if (deploySourceVm) {
+  name: 'sourceVm2019'
   params: {
     location: location
     resourcePrefix: resourcePrefix
+    nameSuffix: 'srcvm19'
+    imagePublisher: 'MicrosoftSQLServer'
+    imageOffer: 'sql2019-ws2022'
+    imageSku: 'sqldev-gen2'
+    sqlVersionLabel: 'SQL Server 2019'
+    sqlSubnetId: network.outputs.sqlSubnetId
+    vmSize: vmSize
+    adminUsername: vmAdminUsername
+    adminPassword: vmAdminPassword
+    sqlAdminLogin: sqlAdminLogin
+    setupScriptUri: setupScriptUri
+    autoShutdownTime: autoShutdownTime
+  }
+}
+
+module sourceVm2025 'sourceVm.bicep' = if (deploySourceVm) {
+  name: 'sourceVm2025'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    nameSuffix: 'srcvm25'
+    imagePublisher: 'MicrosoftSQLServer'
+    imageOffer: 'sql2025-ws2025'
+    imageSku: 'entdev-gen2'
+    sqlVersionLabel: 'SQL Server 2025'
     sqlSubnetId: network.outputs.sqlSubnetId
     vmSize: vmSize
     adminUsername: vmAdminUsername
@@ -91,6 +122,8 @@ module sqlServer 'sqlServer.bicep' = {
     sqlAdminLogin: sqlAdminLogin
     sqlAdminPassword: sqlAdminPassword
     resourceTags: resourceTags
+    entraAdminLogin: sqlEntraAdminLogin
+    entraAdminObjectId: sqlEntraAdminObjectId
   }
 }
 
@@ -120,7 +153,11 @@ module sqlMi 'sqlMi.bicep' = if (deploySqlMi) {
 }
 
 #disable-next-line BCP318
-output vmName string = deploySourceVm ? sourceVm.outputs.vmName : ''
+output vmName string = deploySourceVm ? sourceVm2019.outputs.vmName : ''
+#disable-next-line BCP318
+output vmName2019 string = deploySourceVm ? sourceVm2019.outputs.vmName : ''
+#disable-next-line BCP318
+output vmName2025 string = deploySourceVm ? sourceVm2025.outputs.vmName : ''
 #disable-next-line BCP318
 output bastionName string = deploySourceVm ? bastion.outputs.bastionName : ''
 output sqlServerFqdn string = sqlServer.outputs.sqlServerFqdn

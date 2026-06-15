@@ -126,8 +126,9 @@ def build_architecture() -> str:
     bastion = d.icon("Azure Bastion\nmhlabu01-bastion", "bastion", 385, 260, 46, 46, fontsize=10)
 
     d.container("snet-sql  (10.0.1.0/24)", 345, 360, 460, 150, "#F6FAFD", "#7AAEDB")
-    srcvm = d.icon("Source VM — SQL Server 2019\nmhlabu01-srcvm", "source-vm", 385, 388, 46, 46, fontsize=10)
-    d.icon("NSG\nmhlabu01-sql-nsg", "nsg", 660, 388, 46, 46, fontsize=10)
+    srcvm19 = d.icon("Source VM — SQL Server 2019\nmhlabu01-srcvm19  (DMS source)", "source-vm", 360, 388, 46, 46, fontsize=9)
+    srcvm25 = d.icon("Source VM — SQL Server 2025\nmhlabu01-srcvm25  (MI Link source)", "source-vm", 545, 388, 46, 46, fontsize=9)
+    d.icon("NSG\nmhlabu01-sql-nsg", "nsg", 720, 388, 46, 46, fontsize=10)
 
     d.container("snet-mi  (10.0.4.0/24, delegated)", 345, 525, 460, 120, "#F6FAFD", "#7AAEDB")
     mi = d.icon("SQL Managed Instance\nmhlabu01-sqlmi-…  (MI Link target)", "sql-mi", 385, 552, 46, 46, fontsize=10)
@@ -146,18 +147,19 @@ def build_architecture() -> str:
            exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(student, srv, "Portal / SSMS", color="#0078D4",
            exit_=(1, 0.2), entry=(0, 0.2))
-    d.edge(entra, srcvm, "RBAC (scoped to the RG):\nContributor + Key Vault Secrets User + VM Admin Login",
+    d.edge(entra, srcvm19, "RBAC (scoped to the RG):\nContributor + Key Vault Secrets User + VM Admin Login",
            color="#7FBA00", dashed=True, exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(entra, kv, "read secrets", color="#7FBA00",
            dashed=True, exit_=(0.8, 0), entry=(0, 0.8))
-    d.edge(srcvm, db, "Challenge 2 — DMS migration", color="#C0392B",
-           exit_=(1, 0.5), entry=(0, 0.5))
-    d.edge(srcvm, mi, "Challenge 3 — MI Link", color="#8E44AD",
+    d.edge(srcvm19, db, "Challenge 2 — DMS migration", color="#C0392B",
+           exit_=(0.5, 1), entry=(0, 0.5))
+    d.edge(srcvm25, mi, "Challenge 3 — MI Link", color="#8E44AD",
            exit_=(0.5, 1), entry=(0.5, 0))
-    d.edge(srcvm, law, "diagnostics / telemetry", color="#605E5C", dashed=True,
+    d.edge(srcvm25, law, "diagnostics / telemetry", color="#605E5C", dashed=True,
            exit_=(0.5, 0), entry=(0.5, 1))
 
-    d.label("AdventureWorks2019 and WideWorldImporters are restored and online on the Source VM.",
+    d.label("Both Source VMs restore the same databases (AdventureWorks2019, WideWorldImporters). "
+            "SQL auth + Microsoft Entra ID auth on the Azure SQL server.",
             290, 695, 850, 20, fontsize=11, bold=False, color="#605E5C")
     return d.to_xml()
 
@@ -171,7 +173,8 @@ def build_access_flow() -> str:
     portal = d.icon("2) Azure Portal\nResource group: rg-mhlab-user01", "azure-sql", 430, 150, 50, 50, fontsize=10)
 
     bastion = d.icon("3) Azure Bastion\nmhlabu01-bastion", "bastion", 660, 60, 48, 48, fontsize=10)
-    srcvm = d.icon("4) Source VM — SQL Server 2019\nmhlabu01-srcvm (SSMS → localhost)", "source-vm", 900, 60, 48, 48, fontsize=10)
+    srcvm19 = d.icon("4a) Source VM — SQL Server 2019\nmhlabu01-srcvm19 (DMS source)", "source-vm", 900, 30, 48, 48, fontsize=9)
+    srcvm25 = d.icon("4b) Source VM — SQL Server 2025\nmhlabu01-srcvm25 (MI Link source)", "source-vm", 900, 140, 48, 48, fontsize=9)
     keyvault = d.icon("2a) Key Vault — read VM/SQL\npasswords  mhlabu01kv…", "key-vault", 430, 330, 50, 50, fontsize=9)
     srv = d.icon("5) Azure SQL server (DMS target)\nmhlabu01-sqlsrv-….database.windows.net", "sql-server", 660, 230, 48, 48, fontsize=9)
     mi = d.icon("6) SQL Managed Instance (MI Link)\nmhlabu01-sqlmi-…", "sql-mi", 660, 360, 48, 48, fontsize=10)
@@ -180,11 +183,12 @@ def build_access_flow() -> str:
     d.edge(entra, portal, color="#0078D4")
     d.edge(portal, keyvault, "read secrets", color="#7FBA00", dashed=True, exit_=(0.5, 1), entry=(0.5, 0))
     d.edge(portal, bastion, color="#0078D4", entry=(0.5, 1))
-    d.edge(bastion, srcvm, "RDP in browser", color="#0078D4")
+    d.edge(bastion, srcvm19, "RDP in browser", color="#0078D4", exit_=(1, 0.4), entry=(0, 0.5))
+    d.edge(bastion, srcvm25, "RDP in browser", color="#0078D4", exit_=(1, 0.6), entry=(0, 0.5))
     d.edge(portal, srv, color="#0078D4", entry=(0, 0.5))
     d.edge(portal, mi, color="#0078D4", entry=(0, 0.5))
 
-    d.label("Databases on the Source VM: AdventureWorks2019, WideWorldImporters (online).",
+    d.label("Both Source VMs have the same databases online: AdventureWorks2019, WideWorldImporters.",
             230, 450, 760, 20, fontsize=11, bold=False, color="#605E5C")
     return d.to_xml()
 
@@ -202,8 +206,9 @@ def build_network() -> str:
     d.icon("NSG\nBastion-required\ntraffic", "nsg", 620, 175, 46, 46, fontsize=9)
 
     d.container("snet-sql  (10.0.1.0/24)", 260, 320, 540, 170, "#F6FAFD", "#7AAEDB")
-    srcvm = d.icon("Source VM — SQL Server 2019\nmhlabu01-srcvm", "source-vm", 300, 360, 46, 46, fontsize=10)
-    d.icon("NSG\nRDP via Bastion\nSQL 1433", "nsg", 620, 360, 46, 46, fontsize=9)
+    srcvm19 = d.icon("Source VM — SQL Server 2019\nmhlabu01-srcvm19", "source-vm", 300, 355, 46, 46, fontsize=9)
+    srcvm25 = d.icon("Source VM — SQL Server 2025\nmhlabu01-srcvm25", "source-vm", 470, 355, 46, 46, fontsize=9)
+    d.icon("NSG\nRDP via Bastion\nSQL 1433", "nsg", 640, 355, 46, 46, fontsize=9)
 
     d.container("snet-mi  (10.0.4.0/24, delegated to Microsoft.Sql/managedInstances)", 260, 520, 540, 180, "#F6FAFD", "#7AAEDB")
     mi = d.icon("SQL Managed Instance\nmhlabu01-sqlmi-…\n(public endpoint)", "sql-mi", 300, 560, 46, 46, fontsize=9)
@@ -216,10 +221,11 @@ def build_network() -> str:
     d.icon("Log Analytics\nmhlabu01-law", "log-analytics", 1060, 470, 46, 46, fontsize=9)
 
     d.edge(student, bastion, "443 HTTPS (public)", color="#0078D4", exit_=(1, 0.3), entry=(0, 0.5))
-    d.edge(bastion, srcvm, "browser RDP", color="#0078D4", exit_=(0.5, 1), entry=(0.5, 0))
+    d.edge(bastion, srcvm19, "browser RDP", color="#0078D4", exit_=(0.4, 1), entry=(0.5, 0))
+    d.edge(bastion, srcvm25, "browser RDP", color="#0078D4", exit_=(0.6, 1), entry=(0.5, 0))
     d.edge(student, srv, "portal / SSMS 1433 (public)", color="#0078D4", exit_=(1, 0.7), entry=(0, 0.2))
-    d.edge(srcvm, db, "Challenge 2 — DMS (1433)", color="#C0392B", exit_=(1, 0.5), entry=(0, 0.5))
-    d.edge(srcvm, mi, "Challenge 3 — MI Link (5022)", color="#8E44AD", exit_=(0.5, 1), entry=(0.5, 0))
+    d.edge(srcvm19, db, "Challenge 2 — DMS (1433)", color="#C0392B", exit_=(1, 0.5), entry=(0, 0.5))
+    d.edge(srcvm25, mi, "Challenge 3 — MI Link (5022)", color="#8E44AD", exit_=(0.5, 1), entry=(0.5, 0))
 
     d.label("Each student has an isolated VNet; all endpoints are public by design (no private endpoints or peering).",
             230, 705, 600, 20, fontsize=11, bold=False, color="#605E5C")
@@ -238,13 +244,14 @@ def build_isolation() -> str:
     # Expanded example: user01.
     d.container("rg-mhlab-user01", 70, 150, 300, 560, "#FBFBFB", "#605E5C", dashed=True)
     d.icon("Entra ID user — mhlabuser01@…\nRBAC scoped to this RG", "user", 100, 180, 40, 40, fontsize=8)
-    d.icon("Source VM\nmhlabu01-srcvm", "source-vm", 100, 270, 44, 44, fontsize=9)
+    d.icon("Source VM — SQL 2019\nmhlabu01-srcvm19", "source-vm", 100, 260, 44, 44, fontsize=8)
+    d.icon("Source VM — SQL 2025\nmhlabu01-srcvm25", "source-vm", 250, 260, 44, 44, fontsize=8)
     d.icon("Azure SQL server\nmhlabu01-sqlsrv-…", "sql-server", 100, 360, 44, 44, fontsize=9)
     d.icon("SQL Managed Instance\nmhlabu01-sqlmi-…", "sql-mi", 100, 450, 44, 44, fontsize=9)
     d.icon("Key Vault\nmhlabu01kv…", "key-vault", 100, 540, 44, 44, fontsize=9)
     d.icon("Log Analytics\nmhlabu01-law", "log-analytics", 100, 630, 44, 44, fontsize=9)
-    d.icon("Azure Bastion\nmhlabu01-bastion", "bastion", 250, 270, 44, 44, fontsize=9)
-    d.label("VNet 10.0.0.0/16\n(isolated)", 235, 360, 130, 40, fontsize=10, bold=False, color="#605E5C")
+    d.icon("Azure Bastion\nmhlabu01-bastion", "bastion", 250, 360, 44, 44, fontsize=9)
+    d.label("VNet 10.0.0.0/16\n(isolated)", 235, 450, 130, 40, fontsize=10, bold=False, color="#605E5C")
 
     # Collapsed, identical copies.
     for xx, name in ((400, "rg-mhlab-user02"), (640, "rg-mhlab-user03")):

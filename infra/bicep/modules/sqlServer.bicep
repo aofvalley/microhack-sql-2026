@@ -17,6 +17,14 @@ param sqlAdminPassword string
 @description('Extra resource tags, e.g. SecurityControl=Ignore, to satisfy MCAPS governance policies when testing.')
 param resourceTags object = {}
 
+@description('Microsoft Entra ID administrator login (UPN or display name). Empty leaves SQL authentication only.')
+param entraAdminLogin string = ''
+
+@description('Microsoft Entra ID administrator object id (principal/SID). Required when entraAdminLogin is set.')
+param entraAdminObjectId string = ''
+
+var enableEntraAdmin = !empty(entraAdminLogin) && !empty(entraAdminObjectId)
+
 var sqlServerName = toLower('${resourcePrefix}-sqlsrv-${uniqueString(resourceGroup().id)}')
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
@@ -24,8 +32,19 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   location: location
   tags: resourceTags
   properties: {
+    // SQL authentication (username/password) stays enabled; Microsoft Entra ID
+    // authentication is added on top when an Entra admin is supplied, so the
+    // server accepts both authentication methods (azureADOnlyAuthentication=false).
     administratorLogin: sqlAdminLogin
     administratorLoginPassword: sqlAdminPassword
+    administrators: enableEntraAdmin ? {
+      administratorType: 'ActiveDirectory'
+      principalType: 'User'
+      login: entraAdminLogin
+      sid: entraAdminObjectId
+      tenantId: subscription().tenantId
+      azureADOnlyAuthentication: false
+    } : null
     version: '12.0'
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
