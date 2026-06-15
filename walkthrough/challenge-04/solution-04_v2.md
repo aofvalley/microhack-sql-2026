@@ -603,7 +603,7 @@ The previous query returns both queries and the execution plans associated, as w
 
 In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans ans explore the differences:
 
-![SSMS Query Store highest consumption 2](../../Images/c4-step-15-query-store-foce plan-execution.png)
+![SSMS Query Store highest consumption 2](../../Images/c4-step-14-query-store-queries-highest-consumption2.png)
 
 Compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL.
 
