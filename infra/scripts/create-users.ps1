@@ -172,8 +172,25 @@ try {
                 '--password', $createdPassword,
                 '--force-change-password-next-sign-in', 'true',
                 '--output', 'json'
-            )
-            $user = $created.Output -join [Environment]::NewLine | ConvertFrom-Json
+            ) -AllowFailure
+            if ($created.ExitCode -ne 0) {
+                $createdText = ($created.Output -join [Environment]::NewLine)
+                if ($createdText -match 'already exists') {
+                    # A transient Graph error on the existence check above can land us
+                    # here even though the user already exists. Treat as existing and
+                    # re-fetch so the run stays idempotent.
+                    Write-Host '  User already exists (create returned conflict). Re-fetching.'
+                    $createdPassword = $null
+                    $refetch = Invoke-Az -Arguments @('ad', 'user', 'show', '--id', $upn, '--output', 'json')
+                    $user = $refetch.Output -join [Environment]::NewLine | ConvertFrom-Json
+                }
+                else {
+                    throw "az ad user create failed for ${upn}: $createdText"
+                }
+            }
+            else {
+                $user = $created.Output -join [Environment]::NewLine | ConvertFrom-Json
+            }
         }
 
         if ($AssignRbac) {
