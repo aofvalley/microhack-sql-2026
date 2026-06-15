@@ -6,6 +6,12 @@
 
 > **Timing:** Allow 45–60 minutes for Steps 1–8. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
 
+## Step 0 — Establish admin
+First of all we need to define the administator of the managed instance. Select you own user here:
+
+![SQL MI diagnostic settings blade](../../Images/c4-step-0-set-admin.png)
+
+
 ## Step 1 — Enable diagnostic settings on SQL MI
 
 > **Note:** The deployment Bicep (`infra/modules/monitoring.bicep`) already provisions the Log Analytics workspace `log-<prefix>`. If your facilitator also pre-configured diagnostic settings on the SQL MI, verify the categories below are enabled and skip to Step 2.
@@ -336,64 +342,8 @@ AzureDiagnostics
 
 > **Tip:** The `QueryStoreRuntimeStatistics` fields `duration_d`, `cpu_time_d`, etc. store values in **microseconds**. Divide by 1,000 to convert to milliseconds. Use `getschema` (see the Tip above) to discover the exact column names in your workspace.
 
-### Query 3 — Detect blocking via DMVs (SQL MI)
 
-Run the following T-SQL directly against the managed instance to check for current blocking chains:
-
-```sql
--- Current blocking chains on SQL MI
-SELECT
-    blocked.session_id AS blocked_session_id,
-    blocked.blocking_session_id,
-    blocked.wait_type,
-    blocked.wait_time / 1000 AS wait_time_sec,
-    DB_NAME(blocked.database_id) AS database_name,
-    SUBSTRING(blocked_text.text,
-        (blocked.statement_start_offset / 2) + 1,
-        ((CASE blocked.statement_end_offset
-            WHEN -1 THEN DATALENGTH(blocked_text.text)
-            ELSE blocked.statement_end_offset
-          END - blocked.statement_start_offset) / 2) + 1
-    ) AS blocked_statement,
-    SUBSTRING(blocker_text.text,
-        (blocker.statement_start_offset / 2) + 1,
-        ((CASE blocker.statement_end_offset
-            WHEN -1 THEN DATALENGTH(blocker_text.text)
-            ELSE blocker.statement_end_offset
-          END - blocker.statement_start_offset) / 2) + 1
-    ) AS blocker_statement
-FROM sys.dm_exec_requests AS blocked
-INNER JOIN sys.dm_exec_requests AS blocker
-    ON blocked.blocking_session_id = blocker.session_id
-CROSS APPLY sys.dm_exec_sql_text(blocked.sql_handle) AS blocked_text
-CROSS APPLY sys.dm_exec_sql_text(blocker.sql_handle) AS blocker_text
-WHERE blocked.blocking_session_id <> 0;
-```
-
-### Query 4 — Detect deadlocks via Extended Events or system health (SQL MI)
-
-To review recent deadlocks on SQL MI, query the `system_health` Extended Events session which captures deadlock graphs automatically:
-
-```sql
--- Recent deadlocks from system_health XE session
-SELECT
-    xdr.value('@timestamp', 'datetime2') AS deadlock_time,
-    xdr.query('.') AS deadlock_graph
-FROM (
-    SELECT CAST(target_data AS XML) AS target_data
-    FROM sys.dm_xe_session_targets AS st
-    INNER JOIN sys.dm_xe_sessions AS s
-        ON s.address = st.event_session_address
-    WHERE s.name = 'system_health'
-      AND st.target_name = 'ring_buffer'
-) AS data
-CROSS APPLY target_data.nodes('RingBufferTarget/event[@name="xml_deadlock_report"]') AS xevt(xdr)
-ORDER BY deadlock_time DESC;
-```
-
-> **Tip:** For production workloads, consider creating a dedicated Extended Events session to capture blocking and deadlock events with richer detail than the `system_health` session provides.
-
-### Query 5 — Query Store wait stats trend
+### Query 3 — Query Store wait stats trend
 
 This query trends waits by category so you can distinguish CPU, IO, lock, memory, and log pressure over time.
 
