@@ -249,11 +249,9 @@ Open **Monitoring** → **Metrics**. Set scope to `sqlmi-microhack-2026`, metric
 
 ![Metrics blade CPU and IO](../../Images/c4-step4-SQLMI-Monitoring-Metrics.png)
 
-Under **Logs**, review available recommendations and Intelligent Insights. The objective is not to accept every recommendation immediately; the objective is to correlate the portal signal with the DMV and Query Store evidence.
-
-![Intelligent Insights](../../Images/c4-step4-SQLMI-Intelligent-Insights.png)
 
 In **Logs** tab, in the right top corner try the new **Observability agent**, a temporary chat that can assist you analyze the metrics and logs.
+To start you can click to Key metric overview to check the suggested analysis:
 
 ![Observability agent](../../Images/c4-step4-SQLMI-Observability-Agent.png)
 
@@ -309,7 +307,6 @@ This query charts SQL MI CPU from the `ResourceUsageStats` category and validate
 ```kusto
 AzureDiagnostics
 | where TimeGenerated > ago(6h)
-| where Resource =~ "sqlmi-microhack-2026"
 | where Category == "ResourceUsageStats"
 | extend cpu_percent = todouble(avg_cpu_percent_s)
 | summarize avg_cpu_percent = avg(cpu_percent), max_cpu_percent = max(cpu_percent) by bin(TimeGenerated, 5m)
@@ -405,7 +402,7 @@ AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where Category == "QueryStoreWaitStatistics"
 | extend database_name = coalesce(DatabaseName_s, Resource)
-| extend wait_category = coalesce(wait_category_s, wait_category_desc_s, "unknown")
+| extend wait_category = coalesce(wait_category_s, "unknown")
 | extend total_wait_ms = todouble(total_query_wait_time_ms_d)
 | summarize total_wait_ms = sum(total_wait_ms) by database_name, wait_category, bin(TimeGenerated, 15m)
 | order by TimeGenerated asc
@@ -662,123 +659,6 @@ Suggested validation checklist:
 
 At this point you have used the same layers you would use in a production incident: engine-level DMVs, persisted Query Store telemetry, Azure portal metrics, diagnostic logs in Log Analytics, and Azure Monitor alerting. In a real engagement, document the root cause, the evidence, the remediation, and the post-fix baseline.
 
----
-
-## Bonus Step 9 — Explore Database Watcher (preview, optional)
-
-> **Prerequisites:** This step is optional and intended for teams that finish Steps 1–8 early. Database Watcher is currently in **preview** and is only available in a subset of Azure regions (Americas: Canada Central, Canada East, Central US, East US, East US 2, North Central US, West US; plus select EMEA and APAC regions). If your SQL MI is deployed in an unsupported region, you can still create a watcher in a nearby supported region — it can monitor targets cross-region. This step also requires an Azure Data Explorer cluster (a free cluster works for the lab) or Real-Time Analytics in Microsoft Fabric.
-
-Database Watcher is Microsoft's purpose-built monitoring solution for Azure SQL workloads. Unlike diagnostic settings that stream logs to Log Analytics, Database Watcher collects data from **70+ DMVs and catalog views** directly into an Azure Data Explorer database, providing richer datasets (Active Sessions, Top Queries, Wait Stats, Index Metadata, Backup History, and more) with built-in dashboards in the Azure portal.
-
-### 9a — Create a free Azure Data Explorer cluster
-
-If your lab subscription does not already have an Azure Data Explorer cluster, create a **free cluster** for this step (no SLA, but sufficient for the lab):
-
-1. Navigate to [https://aka.ms/kustofree](https://aka.ms/kustofree) and sign in.
-2. Create a free cluster. Note the cluster URI and the default database name.
-
-> **Note:** Creating the free cluster from the link above avoids a known portal issue where the cluster shows a 403-Forbidden error in the ADX web UI.
-
-If you prefer a provisioned cluster, create a Dev/test SKU Azure Data Explorer cluster in the same region as your SQL MI to minimize network costs.
-
-### 9b — Create a Database Watcher
-
-1. In the Azure portal, search for **Database Watchers** and select **Create**.
-2. Choose the subscription and resource group `rg-microhack-sql-2026`.
-3. Name the watcher `dbw-microhack-sql`.
-4. Select a supported region (same as your SQL MI if possible).
-5. Under **Data store**, select your Azure Data Explorer cluster and database.
-6. Select **Review + create** → **Create**.
-
-### 9c — Add SQL MI as a target
-
-1. Open the watcher `dbw-microhack-sql` → **SQL targets** → **Add**.
-2. Select **SQL managed instance** → `sqlmi-microhack-2026`.
-3. Choose **Microsoft Entra authentication** (recommended) or SQL authentication.
-4. If using public connectivity, ensure the SQL MI public endpoint is enabled and the NSG allows inbound traffic on TCP port 3342 from `AzureCloud`.
-5. Save the target.
-
-### 9d — Grant watcher access to SQL MI
-
-The watcher needs a dedicated login with specific, limited permissions. Connect to the SQL MI `master` database and run the following T-SQL (replace the watcher identity with the managed identity name shown on the watcher's **Identity** page):
-
-```sql
--- Replace 'dbw-microhack-sql' with your watcher's managed identity name.
-CREATE LOGIN [dbw-microhack-sql] FROM EXTERNAL PROVIDER;
-
--- Grant required server roles
-ALTER SERVER ROLE ##MS_ServerPerformanceStateReader## ADD MEMBER [dbw-microhack-sql];
-ALTER SERVER ROLE ##MS_DefinitionReader## ADD MEMBER [dbw-microhack-sql];
-ALTER SERVER ROLE ##MS_DatabaseConnector## ADD MEMBER [dbw-microhack-sql];
-GO
-```
-
-Grant access to `msdb` tables for backup and SQL Agent history:
-
-```sql
-USE msdb;
-GO
-CREATE USER [dbw-microhack-sql] FOR LOGIN [dbw-microhack-sql];
-GO
-GRANT SELECT ON dbo.backupmediafamily TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.backupmediaset TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.backupset TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.suspect_pages TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.syscategories TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.sysjobactivity TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.sysjobhistory TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.sysjobs TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.sysjobsteps TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.sysoperators TO [dbw-microhack-sql];
-GRANT SELECT ON dbo.syssessions TO [dbw-microhack-sql];
-GO
-```
-
-> **Important:** Do not add the watcher login to any other roles or grant additional permissions beyond those listed above. The watcher validates its exact permission set on connection and will **disconnect** if it detects unexpected permissions.
-
-### 9e — Start the watcher and explore dashboards
-
-1. Return to the watcher **Overview** page and select **Start**.
-2. Wait 5–10 minutes for the first data collection cycle to complete.
-3. Open the **Dashboards** page. You should see:
-   - **Estate dashboard** — a heatmap of CPU utilization across all monitored targets.
-   - **Resource dashboard** — click into `sqlmi-microhack-2026` for detailed tabs: Performance, Active Sessions, Top Queries, Wait Statistics, Backup History, and more.
-
-4. Navigate to the **Top Queries** tab. Compare the top CPU consumers shown here with the DMV results from Step 3 and the Query Store data from Step 6. You should see the same synthetic procedures (`usp_MicroHackCpuPressure`, `usp_MicroHackCursorPressure`) appearing in the Database Watcher view.
-
-### 9f — Run a KQL query on the watcher data store
-
-From the watcher **Dashboards** page, expand the **Data store** section and copy the **Kusto query URI**. Open the [Azure Data Explorer web UI](https://dataexplorer.azure.com/) and connect to that URI.
-
-Run a query to compare the Top Queries dataset with your Log Analytics results from Step 5:
-
-```kusto
-// Top CPU-consuming queries from the Database Watcher Top queries dataset.
-sqlmi_query_runtime_stats
-| where sample_time_utc > ago(2h)
-| summarize
-    total_cpu_ms = sum(total_cpu_time_ms),
-    total_executions = sum(count_executions),
-    avg_duration_ms = avg(avg_duration_ms)
-    by query_hash, query_sql_text = tostring(query_sql_text)
-| top 10 by total_cpu_ms desc
-```
-
-> **Note:** Database Watcher dataset table names (e.g., `sqlmi_query_runtime_stats`, `sqlmi_active_sessions`, `sqlmi_wait_stats`) differ from the `AzureDiagnostics` category names used in Log Analytics. See [Database watcher data collection and datasets](https://learn.microsoft.com/en-us/azure/azure-sql/database-watcher-data?view=azuresql) for the full schema reference.
-
-### What to compare
-
-| Aspect | Diagnostic Settings + Log Analytics (Steps 1–5) | Database Watcher (Step 9) |
-|--------|--------------------------------------------------|---------------------------|
-| **Data source** | Diagnostic log categories streamed to `AzureDiagnostics` table | 70+ DMV/catalog view datasets collected into ADX tables |
-| **Query engine** | Log Analytics (KQL on Azure Monitor Logs) | Azure Data Explorer (native KQL) |
-| **Dashboards** | Custom workbooks or manual KQL | Built-in portal dashboards with heatmaps, Top Queries, drill-through |
-| **Setup effort** | Diagnostic setting + Log Analytics workspace | Watcher + ADX cluster + SQL target + RBAC grants |
-| **Cost model** | Log Analytics ingestion per GB | ADX cluster SKU (or free cluster) |
-| **Status** | GA | Preview |
-| **Best for** | Centralized log correlation, alerting, long-term retention | Deep SQL-specific monitoring, fleet views, rich query analytics |
-
-In production, these approaches are **complementary**: diagnostic settings provide integration with Azure Monitor alerts and cross-service log correlation, while Database Watcher delivers deeper SQL-specific observability. For this lab, Steps 1–8 cover the production-ready path; Database Watcher adds a forward-looking preview of what fleet monitoring looks like.
 
 ---
 
