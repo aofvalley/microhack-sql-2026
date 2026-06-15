@@ -25,16 +25,29 @@ The lab uses a single source instance, assessed against the full set of Azure SQ
 
 | Source | Targets evaluated | Feeds |
 |---|---|---|
-| One **SQL Server 2019** IaaS VM with restored sample databases (AdventureWorks2019 / WideWorldImporters / AdventureWorksDW2019) | Azure SQL Database · Azure SQL Managed Instance · SQL Server on Azure VM (IaaS) | Challenge 2 (DMS → Azure SQL Database) and Challenge 3 (MI Link → Azure SQL Managed Instance) |
+| The **SQL Server 2019** IaaS VM `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) with the restored sample databases **AdventureWorks2019** and **WideWorldImporters** | Azure SQL Database · Azure SQL Managed Instance · SQL Server on Azure VM (IaaS) | Challenge 2 (DMS → Azure SQL Database) and Challenge 3 (MI Link → Azure SQL Managed Instance) |
 
 Assess this instance against every target so each subsequent migration challenge — and any IaaS
 rehost decision — starts from the same documented findings.
 
+> **Your environment.** All names use the `<prefix>u<NN>` convention from
+> [Challenge 0](challenge-00.md), where `<NN>` is your two-digit user number (e.g. `mhu01`). The
+> resources you use in this challenge are pre-provisioned in your resource group `rg-mh-user<NN>`:
+>
+> | Resource | Name | Role in this challenge |
+> |---|---|---|
+> | Source VM (SQL Server 2019) | `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) | The source instance you assess. Connect through Azure Bastion `<prefix>u<NN>-bastion`. |
+> | Source VM (SQL Server 2025) | `<prefix>u<NN>-srcvm25` (e.g. `mhu01-srcvm25`) | Not used here — it is the MI Link source for Challenge 3. |
+> | Azure Migrate project | `<prefix>u<NN>-migrate` (e.g. `mhu01-migrate`) | Pre-created Azure Migrate project. Register the appliance and run the assessments here. |
+> | Azure SQL logical server | `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`) | The DMS target used in Challenge 2; not assessed here. |
+
 ## Actions
 
-* Connect to the source VM with **Azure Bastion** and deploy the **Azure Migrate appliance** on
-  the SQL Server 2019 instance.
-* Configure an **Azure Migrate** project, discover the instance, and run a short discovery window
+* Connect to the source VM `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) with **Azure Bastion**
+  (`<prefix>u<NN>-bastion`) and deploy the **Azure Migrate appliance** on the SQL Server 2019
+  instance.
+* Use the pre-provisioned **Azure Migrate** project `<prefix>u<NN>-migrate` (e.g. `mhu01-migrate`)
+  in your resource group `rg-mh-user<NN>`, discover the instance, and run a short discovery window
   (real engagements collect performance data for 7–30 days; this single-server lab needs only a
   short window).
 * Create **three Azure Migrate SQL assessments** from the same discovery data, one per target —

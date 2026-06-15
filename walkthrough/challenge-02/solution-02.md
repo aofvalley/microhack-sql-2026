@@ -12,41 +12,39 @@
 
 ## Naming convention
 
-> **Use your own names.** Every Azure resource in this guide is written as a placeholder. Replace
-> `<prefix>` with a short, unique string of your own (for example a team alias or project code) and
-> substitute the remaining `<…>` tokens with your environment's values. The screenshots show one
-> example run, so the resource names visible in them will differ from yours — **follow the
-> placeholders, not the screenshots.**
+> **Use your assigned lab names.** The deployed convention is `mhu<NN>` for user resources, where
+> `<NN>` is your two-digit user number. The examples below use user `01` (`mhu01`) in resource group
+> `rg-mh-user01`. The screenshots show one example run, so the resource names visible in them may
+> differ from yours — follow the deployed convention below.
 
 | Placeholder | What it is | Example |
 |---|---|---|
-| `<prefix>` | Your unique identifier for this lab | `team07` |
-| `rg-<prefix>` | Resource group holding the lab resources | `rg-team07` |
-| `vm-<prefix>-sql` | Source SQL Server 2019 VM (from Challenge 1) | `vm-team07-sql` |
-| `dms-<prefix>` | Azure Database Migration Service instance | `dms-team07` |
-| `sql-<prefix>` | Target Azure SQL **logical server** (`sql-<prefix>.database.windows.net`) | `sql-team07` |
-| `<database>` | The **single** database you migrate in this lab | `AppDb` |
-| `<region>` | Azure region (keep source, DMS and target together) | `westeurope` |
-| `sqlmigrate` | Source SQL login used by DMS (created in this guide) | `sqlmigrate` |
-| `dms_migrator` | Dedicated **target** SQL login created in this guide (optional) | `dms_migrator` |
+| `<NN>` | Your two-digit user number | `01` |
+| `rg-mh-user<NN>` | Resource group holding the lab resources | `rg-mh-user01` |
+| `mhu<NN>-srcvm19` | Source SQL Server 2019 VM (from Challenge 1) | `mhu01-srcvm19` |
+| `mhu<NN>-dms` | Azure Database Migration Service instance | `mhu01-dms` |
+| `mhu<NN>-sqlsrv-<suffix>` | Target Azure SQL **logical server** (`mhu<NN>-sqlsrv-<suffix>.database.windows.net`) | `mhu01-sqlsrv-<suffix>` |
+| `mhu<NN>-migrate` | Pre-provisioned Azure Migrate project (Challenge 1) | `mhu01-migrate` |
+| `AdventureWorks2019` | The **single** database you migrate in this lab | `AdventureWorks2019` |
+| `sqlmigration` | SQL login used by DMS on **both** the source and the target (created in this guide) | `sqlmigration` |
 
-## What changed since the original
+## Migration tooling for this challenge
 
-The original SQL Modernization MicroHack migrated databases through the Azure Data Studio (ADS)
-SQL Migration extension. ADS was retired on **28-Feb-2026**. This 2026 edition rebuilds the
-migration path on top of **Azure Database Migration Service (DMS)**, driven end-to-end from the
-**Azure portal**, with the **Migrate Missing Schema** option of DMS deploying schema and data
-in a single migration project — the supported Microsoft-native flow for SQL Server → Azure
-SQL Database.
+This walkthrough migrates the database with **Azure Database Migration Service (DMS)**, driven
+end-to-end from the **Azure portal**. DMS's **Migrate Missing Schema** option deploys schema and
+data in a single migration project — the supported Microsoft-native flow for SQL Server → Azure
+SQL Database. Key facts for this lab:
 
-| Original lab choice | 2026 replacement | Why it changed |
-|---|---|---|
-| ADS + Azure SQL Migration extension | **Azure Database Migration Service** (driven from the Azure portal) | ADS is retired; DMS is the underlying service and remains supported. |
-| Implicit runtime managed by ADS | A **self-hosted integration runtime (SHIR)** registered against DMS | For the **SQL Server → Azure SQL Database** scenario the Azure portal **disables the wizard until a SHIR is connected** (verified in the portal — see Step 3.2), even when the source is an Azure VM. The SHIR is installed on the source VM. |
-| SQL Server 2019/2022 source | **SQL Server 2019** source (the Challenge 1 IaaS VM) | Same source instance assessed in Challenge 1 — one IaaS VM, no fleet. |
-| Two sample databases (`AdventureWorks2019`, `WideWorldImporters`) | **One database** (`<database>`) migrated end-to-end | This lab focuses on the DMS flow itself, so we migrate a **single** database to keep the wizard clear. The same steps repeat per database at scale. |
-| Target Azure SQL Managed Instance | **Azure SQL Database** (a single database on one logical server) | Matches the logical server already deployed for this lab. |
-| Schema and data migrated in one wizard step | Schema and data migrated in one wizard step via the **Migrate Missing Schema** checkbox in DMS | Confirmed by the official DMS tutorial. SqlPackage / DACPAC remains a supported alternative (see Annex D). |
+- **Connectivity:** the **SQL Server → Azure SQL Database** scenario requires a **self-hosted
+  integration runtime (SHIR)**; the Azure portal **disables the migration wizard until a SHIR is
+  connected** (verified in the portal — see Step 3.2), even when the source is an Azure VM. The SHIR
+  is installed on the source VM.
+- **Source:** **SQL Server 2019** on the Challenge 1 IaaS VM (`mhu<NN>-srcvm19`).
+- **Database:** a **single** database — **AdventureWorks2019** — is migrated end-to-end to keep the
+  wizard clear. `WideWorldImporters` is reserved for the Challenge 3 MI Link path.
+- **Target:** **Azure SQL Database** (a single database on the logical server already deployed for
+  this lab).
+- **Schema + data:** both move in one wizard step via the **Migrate Missing Schema** checkbox.
 
 > **Online migration is not available for Azure SQL Database targets.** Application downtime
 > starts when the DMS migration starts. Plan an offline cut-over window.
@@ -55,40 +53,40 @@ SQL Database.
 
 ```mermaid
 flowchart LR
-    subgraph SRC["vm-&lt;prefix&gt;-sql · SQL Server 2019 Developer (Azure VM)"]
+    subgraph SRC["Source: mhu01-srcvm19 (SQL Server 2019, Azure VM)"]
         direction TB
-        DB["&lt;database&gt;"]
-        SHIR["Self-hosted integration runtime<br/>(installed on the source VM)"]
+        DB["AdventureWorks2019"]
+        SHIR["Self-hosted integration runtime<br/>installed on the source VM"]
     end
 
-    DMS["Azure Database Migration Service<br/>dms-&lt;prefix&gt;"]
+    DMS["Azure Database Migration Service<br/>mhu01-dms"]
 
-    subgraph TGT["Azure SQL logical server · sql-&lt;prefix&gt;<br/>(SQL authentication)"]
+    subgraph TGT["Target: Azure SQL logical server (SQL auth)"]
         direction TB
-        TDB["&lt;database&gt;<br/>General Purpose or Business Critical"]
+        TDB["AdventureWorks2019<br/>General Purpose or Business Critical"]
     end
 
-    DB -. "TCP 1433 · SQL auth" .-> SHIR
-    SHIR -- "registered (auth key)" --> DMS
-    DMS -- "TCP 1433 · SQL auth (via SHIR egress IP)" --> TGT
+    DB -->|"TCP 1433 - SQL auth"| SHIR
+    SHIR -->|"registered with auth key"| DMS
+    DMS -->|"TCP 1433 - SQL auth via SHIR egress IP"| TDB
 ```
 
 For the **SQL Server → Azure SQL Database** scenario the Azure portal **requires a self-hosted
 integration runtime (SHIR)** and keeps the migration wizard disabled until the SHIR is registered
 and running — this was verified directly in the portal (see Step 3.2). The SHIR is installed on the
-source VM `vm-<prefix>-sql`; it reaches the source instance over TCP 1433 and bridges the migration
+source VM `mhu01-srcvm19`; it reaches the source instance over TCP 1433 and bridges the migration
 back to DMS.
 
 **Components**
 
-- Resource group: `rg-<prefix>`
-- Region: `<region>` (matches the target logical server)
-- Source: `vm-<prefix>-sql` (SQL Server 2019 Developer, the Challenge 1 VM, hosting `<database>`)
-- Target logical server: `sql-<prefix>.database.windows.net` (**SQL authentication**)
-- Target database (created empty before migration): `<database>` — pick the tier from your
+- Resource group: `rg-mh-user01`
+- Region: Sweden Central (`swedencentral`, matches the target logical server)
+- Source: `mhu01-srcvm19` (SQL Server 2019 Developer, the Challenge 1 VM, hosting `AdventureWorks2019`)
+- Target logical server: `mhu01-sqlsrv-<suffix>.database.windows.net` (**SQL authentication**)
+- Target database (created empty before migration): `AdventureWorks2019` — pick the tier from your
   Challenge 1 assessment (General Purpose by default; **Business Critical** if the database uses
-  memory-optimized / In-Memory OLTP tables)
-- DMS instance: `dms-<prefix>`
+  memory-optimized / In-Memory OLTP tables; that finding applies to `WideWorldImporters` in this lab)
+- DMS instance: `mhu01-dms`
 - Connectivity: a **self-hosted integration runtime (SHIR)** installed on the source VM reaches the
   source instance over TCP 1433 and registers against DMS — **required** by the portal for the Azure
   SQL Database target (see Step 3.2).
@@ -109,7 +107,6 @@ You can use either built-in roles or the custom DMS role from the
 **Option B — custom role** (least-privilege, recommended for production): create a custom role
 that grants only the DMS + SQL actions documented in
 [custom-roles](https://learn.microsoft.com/en-us/data-migration/sql-server/database/custom-roles?view=azuresql).
-The full JSON is in **Annex E** of this walkthrough.
 
 ### Source SQL Server 2019 permissions
 
@@ -122,14 +119,14 @@ for the migration rather than reusing a human or service account. Run the follow
 instance, signed in with a `sysadmin` login (e.g. over Bastion with SSMS or `sqlcmd`):
 
 ```sql
--- Connect to: vm-<prefix>-sql (source SQL Server 2019), database: master
+-- Connect to: mhu01-srcvm19 (source SQL Server 2019), database: master
 -- Authentication: a sysadmin login (Windows or SQL).
 
 -- 1) Server-level login for the migration (replace the password with a strong secret).
 CREATE LOGIN [sqlmigration] WITH PASSWORD = '<strong-password>';
 
 -- 2) Map the login on the database to migrate and grant the role DMS needs.
-USE [<database>];
+USE [AdventureWorks2019];
 CREATE USER [sqlmigration] FOR LOGIN [sqlmigration];
 ALTER ROLE db_owner ADD MEMBER [sqlmigration];   -- db_owner is required for schema migration
 -- For data-only migration db_datareader is sufficient:
@@ -149,29 +146,21 @@ ALTER ROLE db_owner ADD MEMBER [sqlmigration];   -- db_owner is required for sch
 > exists** on the target logical server. Create an empty target database **before** you start the
 > wizard, or the mapping step will have nothing to select.
 
-Create one empty Azure SQL Database per source database you intend to migrate. It does **not** need
-a schema — DMS deploys the schema when you enable *Migrate missing schema* (Step 4.7). Using the
-Azure CLI:
-
-```bash
-# Create the (empty) target database on the existing logical server sql-<prefix>.
-az sql db create \
-  --resource-group rg-<prefix> \
-  --server sql-<prefix> \
-  --name <database> \
-  --service-objective S3        # pick a SKU sized for the migration throughput
-```
+You already have the **Azure SQL logical server** deployed for this lab — you only need to add an
+empty database on it, sized from the **Azure Migrate** recommendation you captured in Challenge 1.
+You create it **from the Azure portal in Step 2.3** (no CLI needed). It does **not** need a schema —
+DMS deploys the schema when you enable *Migrate missing schema* (Step 4.7).
 
 > **Name the target after the source.** The wizard maps by selecting a target database from a
-> dropdown; matching the target name to the source database (`<database>`) makes the mapping
+> dropdown; matching the target name to the source database (`AdventureWorks2019`) makes the mapping
 > unambiguous.
 
 ### Target Azure SQL Database permissions
 
-DMS connects to the target with **SQL authentication** (a SQL login on the logical server). Create a
-dedicated login rather than reusing the server admin. For schema migration the login must hold the
-following **server-level** roles on `master` (the exact roles called out in the official DMS
-tutorial):
+DMS connects to the target with **SQL authentication** (a SQL login on the logical server). To keep
+the credentials **unambiguous**, use the **same login name on both sides** — `sqlmigration`. For
+schema migration the target login must hold the following **server-level** roles on `master` (the
+exact roles called out in the official DMS tutorial):
 
 | Server role | Purpose |
 |---|---|
@@ -180,28 +169,29 @@ tutorial):
 | `##MS_DefinitionReader##` | Read all catalog views (`VIEW ANY DEFINITION`) |
 | `##MS_LoginManager##` | Create and delete logins |
 
-Run the following on the **`master`** database of `sql-<prefix>`, signed in as the server admin
+Run the following on the **`master`** database of `mhu01-sqlsrv-<suffix>`, signed in as the server admin
 (SQL admin login or the Entra admin):
 
 ```sql
--- Connect to: sql-<prefix>.database.windows.net , database: master
+-- Connect to: mhu01-sqlsrv-<suffix>.database.windows.net , database: master
 -- Authentication: server admin (SQL login or Microsoft Entra admin).
-CREATE LOGIN [dms_migrator] WITH PASSWORD = '<strong-password>';
+CREATE LOGIN [sqlmigration] WITH PASSWORD = '<strong-password>';
 
-ALTER SERVER ROLE ##MS_DefinitionReader##  ADD MEMBER [dms_migrator];
-ALTER SERVER ROLE ##MS_DatabaseConnector## ADD MEMBER [dms_migrator];
-ALTER SERVER ROLE ##MS_DatabaseManager##   ADD MEMBER [dms_migrator];
-ALTER SERVER ROLE ##MS_LoginManager##      ADD MEMBER [dms_migrator];
+ALTER SERVER ROLE ##MS_DefinitionReader##  ADD MEMBER [sqlmigration];
+ALTER SERVER ROLE ##MS_DatabaseConnector## ADD MEMBER [sqlmigration];
+ALTER SERVER ROLE ##MS_DatabaseManager##   ADD MEMBER [sqlmigration];
+ALTER SERVER ROLE ##MS_LoginManager##      ADD MEMBER [sqlmigration];
 
-CREATE USER [dms_migrator] FOR LOGIN [dms_migrator];
-EXECUTE sp_addRoleMember 'dbmanager', 'dms_migrator';
-EXECUTE sp_addRoleMember 'loginmanager', 'dms_migrator';
+CREATE USER [sqlmigration] FOR LOGIN [sqlmigration];
+EXECUTE sp_addRoleMember 'dbmanager', 'sqlmigration';
+EXECUTE sp_addRoleMember 'loginmanager', 'sqlmigration';
 ```
 
-> **Lab shortcut.** In the lab you can simply use the **server admin SQL login** (e.g. the
-> `CloudSA…` login created with the logical server) for the target connection in Step 4.5 — it
-> already has every right above. The dedicated `dms_migrator` login is the least-privilege pattern
-> recommended for real migrations.
+> **Lab shortcut.** In the lab you can simply use the **server admin SQL login** (`sqladmin`,
+> created with the logical server) for the target connection in Step 4.5 — it
+> already has every right above. The dedicated `sqlmigration` login is the least-privilege pattern
+> recommended for real migrations, and reusing the same name on source and target keeps the wizard
+> unambiguous.
 
 > **Entra-only servers.** If your target logical server was deployed with **Microsoft Entra
 > authentication only**, you cannot `CREATE LOGIN … WITH PASSWORD`. Either enable SQL authentication
@@ -212,27 +202,15 @@ EXECUTE sp_addRoleMember 'loginmanager', 'dms_migrator';
 ### Allow the SHIR to reach the target through the Azure SQL firewall
 
 The self-hosted integration runtime opens the **target** connection from the source VM. The target
-logical server's firewall must therefore allow the **public egress IP** the SHIR host uses to reach
-Azure SQL:
+logical server's firewall must therefore allow the traffic the SHIR host uses to reach Azure SQL.
+Configure this **from the portal** on the target logical server → **Security → Networking**:
 
-1. Find the source VM's outbound public IP (this is what Azure SQL sees as the client):
-
-   ```bash
-   az vm list-ip-addresses -g rg-<prefix> -n vm-<prefix>-sql \
-     --query "[].virtualMachine.network.publicIpAddresses[].ipAddress" -o tsv
-   ```
-
-2. Add it as a server-level firewall rule on the target logical server:
-
-   ```bash
-   az sql server firewall-rule create \
-     --resource-group rg-<prefix> --server sql-<prefix> \
-     --name AllowSHIRHost --start-ip-address <vm-public-ip> --end-ip-address <vm-public-ip>
-   ```
-
-   > **Quick lab option.** Enabling **Allow Azure services and resources to access this server**
-   > (the `0.0.0.0` rule) also lets the SHIR through, but it is broad — prefer the explicit host IP
-   > above for anything beyond a lab.
+1. Set **Public network access** to **Selected networks**.
+2. Under **Firewall rules**, select **Add your client IPv4 address** (and add the source VM's public
+   egress IP if it differs). For a lab you can use a broad rule such as `0.0.0.0` – `255.255.255.255`
+   (`AllowAllForLab`); for anything beyond a lab, scope it to the explicit SHIR host IP instead.
+3. Under **Exceptions**, tick **Allow Azure services and resources to access this server**, then
+   **Save**.
 
 If the firewall does not allow the SHIR host, the *Connect to target Azure SQL Database* step (4.5)
 fails with `Cannot open server '…' requested by the login. Client with IP address '…' is not allowed
@@ -240,19 +218,19 @@ to access the server` (SqlErrorNumber 40615).
 
 ### Tools and connectivity
 
-- Challenge 0 complete: connectivity to `vm-<prefix>-sql` is validated.
+- Challenge 0 complete: connectivity to `mhu01-srcvm19` is validated.
 - Challenge 1 complete: the SSMS migration component + Azure Migrate assessments produced a
   remediation backlog. Apply the **Before Challenge 2** items before continuing.
 - Tools on the source VM (reached over Bastion):
   - **SSMS 21+**
   - **VS Code** + MSSQL extension
-  - **SqlPackage** (latest) — only if you choose the schema-first alternative in Annex D
+  - **SqlPackage** (latest) — only if you choose a schema-first DACPAC alternative
 - Network: a **self-hosted integration runtime** on the source VM must reach the SQL Server 2019
   instance on TCP 1433 and register against DMS (the portal requires a SHIR for the Azure SQL
   Database target — see Step 3.2).
 
 Sign in to the [Azure portal](https://portal.azure.com) with an account that has Contributor on
-`rg-<prefix>` and is the Microsoft Entra admin (or a member) on the target logical server.
+`rg-mh-user01` and is the Microsoft Entra admin (or a member) on the target logical server.
 
 ---
 
@@ -272,7 +250,8 @@ instance. Map each item back to its assessment rule:
 | Raise database compat level to ≥100 | `DbCompatLevelLowerThan100` |
 | Disable [Change Data Capture (CDC)](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-data-capture-sql-server) on source if enabled | DMS limitation — see the tutorial |
 
-Verify the remediation using the queries in **Annex A** at the bottom of this walkthrough.
+Verify the remediation with the discovery queries from Challenge 1 against the source instance
+before continuing.
 
 > The DMS tutorial warns explicitly: **disable CDC on the source database before starting the
 > migration**, otherwise DMS will migrate CDC-related objects and re-enabling CDC on the target
@@ -284,13 +263,13 @@ Verify the remediation using the queries in **Annex A** at the bottom of this wa
 
 ### 2.1 Confirm the target logical server (already deployed)
 
-The lab logical server `sql-<prefix>` is **already deployed** with a **SQL admin login** (a
-`CloudSA…` account created with the server). You do not need to create the server — just confirm it
+The lab logical server `mhu01-sqlsrv-<suffix>` is **already deployed** with a **SQL admin login**
+(`sqladmin`). You do not need to create the server — just confirm it
 in the portal:
 
-1. Open **SQL servers** → `sql-<prefix>`.
-2. Note the **Server admin** login under **Overview** (the `CloudSA…` SQL login). You will use this
-   login — or the dedicated `dms_migrator` login from **Prerequisites → Target Azure SQL Database
+1. Open **SQL servers** → `mhu01-sqlsrv-<suffix>`.
+2. Note the **Server admin** login under **Overview** (the `sqladmin` SQL login). You will use this
+   login — or the dedicated `sqlmigration` login from **Prerequisites → Target Azure SQL Database
    permissions** — for the target connection in Step 4.5.
 
 > If your server was instead deployed **Entra-only**, see the *Entra-only servers* note in
@@ -299,35 +278,43 @@ in the portal:
 ### 2.2 Open the firewall for the source network
 
 For a lab you can allow Azure services + your lab public IP. For production, use a **Private
-Endpoint** instead.
+Endpoint** instead. On the logical server, open **Security → Networking**:
 
-1. On the logical server, open **Security → Networking**.
+1. Set **Public network access** to **Selected networks**.
 2. Under **Firewall rules**, select **Add your client IPv4 address**, then add a rule for the
-   source/lab public IP if different.
-3. Set **Allow Azure services and resources to access this server** to **Yes** (lab only), then
+   source/lab public IP if different (a broad `AllowAllForLab` rule `0.0.0.0` – `255.255.255.255`
+   is acceptable for the lab only).
+3. Under **Exceptions**, tick **Allow Azure services and resources to access this server**, then
    **Save**.
+
+![Target logical server Networking — firewall rule and Allow Azure services exception](../../Images/c2-step-2-networking-firewall.png)
 
 ### 2.3 Create the empty target database
 
-Provision **one** empty database — `<database>` — on the target logical server. Pick its service
+Provision **one** empty database — `AdventureWorks2019` — on the target logical server. Pick its service
 tier from your Challenge 1 assessment:
 
 - **General Purpose** (Gen5, e.g. 2 vCore) is the default for most workloads.
-- **Business Critical** is **required** if `<database>` uses **memory-optimized / In-Memory OLTP
-  tables** — that tier is the only one on Azure SQL Database that supports them
+- **Business Critical** is **required** if a database uses **memory-optimized / In-Memory OLTP
+  tables** — that finding applies to `WideWorldImporters` in this lab; the tier is the only one on Azure SQL Database that supports them
   ([In-Memory OLTP availability](https://learn.microsoft.com/en-us/azure/azure-sql/database/in-memory-oltp-overview?view=azuresql)).
   Provisioning such a database as General Purpose makes the **schema deployment of the
   memory-optimized tables fail** during the DMS migration.
 
 > **Watch the assessment gap.** Azure Migrate may mark a database `Ready` for *General Purpose* even
 > when it contains memory-optimized tables (the In-Memory readiness rule does not always fire).
-> Confirm with the source query in **Annex A** before choosing the tier — if the database has any
-> memory-optimized tables, provision it as **Business Critical** (or convert those tables to
-> disk-based on the source first, which is out of scope for this lab).
+> Confirm on the source (query `sys.tables` for `is_memory_optimized = 1`) before choosing the tier —
+> if the database has any memory-optimized tables, provision it as **Business Critical** (or convert
+> those tables to disk-based on the source first, which is out of scope for this lab).
 
-Create it from the portal (**Create a resource → SQL Database**, or the logical server's
-**+ Create database**): select the lab subscription and `rg-<prefix>`, the server `sql-<prefix>`,
-set **Want to use SQL elastic pool? = No**, choose the service tier under
+Create the database **from the portal** on the target logical server. On the
+`mhu01-sqlsrv-<suffix>` **SQL server** blade, select **+ Create database**:
+
+![Target SQL server Overview — Create database](../../Images/c2-step-2-create-database.png)
+
+In the **Create SQL Database** wizard: select the lab subscription and `rg-mh-user01`, confirm the
+server `mhu01-sqlsrv-<suffix>`, set **Want to use SQL elastic pool? = No**, name the database
+`AdventureWorks2019`, choose the service tier (from your Azure Migrate recommendation) under
 **Compute + storage → Configure database**, leave the database **empty** (Data source = **None**),
 and **Review + create**.
 
@@ -342,36 +329,19 @@ permissions), provision it on the target server now, before continuing.
 
 ---
 
-## Step 3 — Create the DMS instance
+## Step 3 — Review the DMS instance and register the SHIR
 
-### 3.1 Create the DMS instance from the portal
+### 3.1 Confirm the DMS instance (already deployed)
 
-The `Microsoft.DataMigration` resource provider is registered automatically the first time you
-create a DMS instance. Following the official tutorial:
+The Azure Database Migration Service instance `mhu01-dms` is **already deployed** in your resource
+group `rg-mh-user01` — you do **not** need to create it. Just confirm it in your subscription:
 
-1. In the Azure portal, navigate to **Azure Database Migration Services** and select **Create**.
-2. In **Select migration scenario and Database Migration Service**, set:
-   - **Source server type**: SQL Server
-   - **Target server type**: Azure SQL Database
-   - **Migration option**: Database Migration Service
-   - Select **Create**.
+1. In the Azure portal, open **Azure Database Migration Services** → `mhu01-dms` (in `rg-mh-user01`).
+2. On **Overview**, confirm the **Target = Azure SQL**, the **Location** (Sweden Central) and note the
+   **Integration Runtime State** — you register the self-hosted integration runtime in **3.2**,
+   because the Azure SQL Database scenario requires it.
 
-   ![Select migration scenario — SQL Server to Azure SQL Database](../../Images/c2-dms-01-select-scenario.png)
-
-3. In **Create Data Migration Service** (Basics):
-   - Subscription: lab subscription
-   - Resource group: `rg-<prefix>`
-   - Database Migration Service name: `dms-<prefix>`
-   - Location: `<region>`
-   - **Review + Create**.
-
-   ![Create Data Migration Service — Basics](../../Images/c2-dms-02-create-basics.png)
-
-4. After deployment, the DMS **Overview** is your hub for the migration. Note the **integration
-   runtime State = not registered** — you'll register one in the next substep, because the Azure SQL
-   Database scenario requires it.
-
-   ![DMS overview — dms-<prefix>](../../Images/c2-dms-03-overview.png)
+![DMS overview — mhu01-dms already deployed in rg-mh-user01](../../Images/c2-dms-00-deployed-overview.png)
 
 ### 3.2 Register the self-hosted integration runtime
 
@@ -388,7 +358,7 @@ create a DMS instance. Following the official tutorial:
    ![New migration scenario disabled — SHIR required](../../Images/c2-dms-04-new-migration-shir-required.png)
 
 2. Open **Configure integration runtime**. On a host that can reach the source instance (the source
-   VM `vm-<prefix>-sql` itself is fine for this lab), follow the blade's two steps — **download the
+   VM `mhu01-srcvm19` itself is fine for this lab), follow the blade's two steps — **download the
    installer** (Step 1) and **copy an authentication key** (Step 2, `Key 1` or `Key 2`):
 
    ![Configure integration runtime — download link and authentication keys](../../Images/c2-dms-05-configure-integration-runtime.png)
@@ -427,8 +397,8 @@ the **DMS instance** blade. The wizard is the same in both entry points.
 
 ### 4.1 Start a new migration
 
-1. In the Azure portal, open the DMS instance `dms-<prefix>` (or the target database
-   `<database>`) and select **New migration**.
+1. In the Azure portal, open the DMS instance `mhu01-dms` (or the target database
+   `AdventureWorks2019`) and select **New migration**.
 2. In **Select new migration scenario**, set:
    - **Source server type**: SQL Server
    - **Target server type**: Azure SQL Database
@@ -448,9 +418,9 @@ SQL VM resource that represents your source.
 | Field | Value |
 |---|---|
 | Is your source SQL Server instance tracked in Azure? | **Yes** |
-| Subscription / Resource group | Lab subscription / `rg-<prefix>` |
-| Location | Region of the source VM, e.g. `<region>` |
-| SQL Server Instance | The Azure SQL VM resource that tracks the source (e.g. `vm-<prefix>-sql`) |
+| Subscription / Resource group | Lab subscription / `rg-mh-user01` |
+| Location | Sweden Central |
+| SQL Server Instance | The Azure SQL VM resource that tracks the source (e.g. `mhu01-srcvm19`) |
 
 ![Source details — tracked-in-Azure resource, region and SQL Server instance](../../Images/c2-dms-11-wizard-source-details.png)
 
@@ -460,9 +430,9 @@ Select **Next: Connect to source SQL Server**.
 
 | Field | Value |
 |---|---|
-| Source server name | Hostname of the source SQL Server as the SHIR resolves it (e.g. `vm-<prefix>-sql`) |
+| Source server name | Hostname of the source SQL Server as the SHIR resolves it (e.g. `mhu01-srcvm19`) |
 | Authentication type | SQL Authentication (the migration login from **Prerequisites → Source SQL Server permissions**) |
-| User name | The migration login (e.g. `sqlmigrate`) with `db_owner` on the source database |
+| User name | The migration login (e.g. `sqlmigration`) with `db_owner` on the source database |
 | Password | (lab password) |
 | Encrypt connection | Yes |
 | Trust server certificate | Yes (the lab SQL Server uses a self-signed certificate) |
@@ -471,7 +441,7 @@ Select **Next: Connect to source SQL Server**.
 
 > **Tip — server name resolution.** The SHIR opens this connection **from the source VM itself**, so
 > the value here is resolved on that host. In this lab the SHIR runs on the **same machine** as SQL
-> Server, so the plain **hostname** (`vm-<prefix>-sql`) — or even `localhost` — connects directly.
+> Server, so the plain **hostname** (`mhu01-srcvm19`) — or even `localhost` — connects directly.
 > If the SHIR were on a different host where DNS does not resolve the name, use the source VM's
 > **private IP** instead. Append `,1433` only for a non-default port.
 
@@ -494,8 +464,9 @@ Select **Next: Select databases for migration**.
 ### 4.4 Select databases for migration
 
 The wizard lists the databases on the source instance with their size and state. **Check the single
-database `<database>`** you want to migrate (this lab migrates one database). Populating the list can
-take a few seconds. Select **Next: Connect to target Azure SQL Database**.
+database `AdventureWorks2019`** you want to migrate (this lab migrates one database). The source
+also contains `WideWorldImporters`, which is reserved for the Challenge 3 MI Link path. Populating
+the list can take a few seconds. Select **Next: Connect to target Azure SQL Database**.
 
 ![Select databases for migration — one database selected](../../Images/c2-dms-13-select-databases.png)
 
@@ -506,11 +477,11 @@ SQL Database**). DMS uses **SQL authentication** here.
 
 | Field | Value |
 |---|---|
-| Subscription / Resource group | Lab subscription / `rg-<prefix>` |
-| Target Azure SQL Database Server | `sql-<prefix>` |
-| Target server name | `sql-<prefix>.database.windows.net` |
+| Subscription / Resource group | Lab subscription / `rg-mh-user01` |
+| Target Azure SQL Database Server | `mhu01-sqlsrv-<suffix>` |
+| Target server name | `mhu01-sqlsrv-<suffix>.database.windows.net` |
 | Authentication type | **SQL Authentication** |
-| User name | The target SQL login — the server admin (`CloudSA…`) in the lab, or the dedicated `dms_migrator` login from **Prerequisites → Target Azure SQL Database permissions** |
+| User name | The target SQL login — the server admin (`sqladmin`) in the lab, or the dedicated `sqlmigration` login from **Prerequisites → Target Azure SQL Database permissions** |
 | Password | (target login password) |
 
 ![Connect to target Azure SQL Database — SQL Authentication](../../Images/c2-dms-14-connect-target.png)
@@ -525,7 +496,7 @@ Select **Next: Map source and target databases**.
 ### 4.6 Map source and target databases
 
 Pick the **target database** (which must already exist) for the source database. Matching names make
-this unambiguous (`<database> → <database>`). You can map only one target per source database.
+this unambiguous (`AdventureWorks2019 → AdventureWorks2019`). You can map only one target per source database.
 
 ![Map source and target databases — source mapped to its empty target](../../Images/c2-dms-15-map-databases.png)
 
@@ -607,18 +578,17 @@ DMS reports the following statuses (per the official tutorial):
 
 ### 6.1 Connect from the source VM (over Bastion)
 
-In SSMS / VS Code MSSQL extension, connect to `sql-<prefix>.database.windows.net`
-using **SQL authentication** (the server admin or `dms_migrator` login). The migrated database
-`<database>` should appear under **Databases** on the target logical server:
+In SSMS / VS Code MSSQL extension, connect to `mhu01-sqlsrv-<suffix>.database.windows.net`
+using **SQL authentication** (the server admin or `sqlmigration` login). The migrated database
+`AdventureWorks2019` should appear under **Databases** on the target logical server:
 
 ![SSMS Object Explorer — migrated database present on the target logical server](../../Images/c2-dms-21-target-object-explorer.png)
 
 ### 6.2 Compare row counts and schema
 
-Run the validation queries in **Annex B** against both source (SQL 2019) and target (Azure SQL
-DB). Row counts on the representative tables must match. The fastest check is to run the same
-row-count query in two SSMS query windows — one connected to the source instance, one to the target
-— and compare side by side:
+Compare row counts and schema between source (SQL 2019) and target (Azure SQL DB). Row counts on the
+representative tables must match. The fastest check is to run the same row-count query in two SSMS
+query windows — one connected to the source instance, one to the target — and compare side by side:
 
 ![Side-by-side row-count comparison — source vs migrated target match](../../Images/c2-dms-22-rowcount-validation.png)
 
@@ -626,7 +596,7 @@ Investigate any mismatch before declaring success.
 
 ### 6.3 Smoke-test the application path
 
-Pick the most-used stored procedure or view in `<database>` (for example a frequently called
+Pick the most-used stored procedure or view in `AdventureWorks2019` (for example a frequently called
 reporting proc) and execute it against the migrated database. Confirm it returns rows
 and that permissions are honored.
 
@@ -636,10 +606,10 @@ Items from the Challenge 1 backlog marked **After Challenge 2** are now in scope
 [migration guide](https://learn.microsoft.com/en-us/data-migration/sql-server/database/guide?view=azuresql)
 recommends:
 
-- **Update statistics** on every migrated table (DMS rebuilds indexes but doesn't refresh
-  stats — see Annex F).
+- **Update statistics** (`UPDATE STATISTICS … WITH FULLSCAN`) on every migrated table (DMS rebuilds
+  indexes but doesn't refresh stats).
 - Raise the target **compatibility level** when the application supports it
-  (e.g. `ALTER DATABASE [<database>] SET COMPATIBILITY_LEVEL = 160;`).
+  (e.g. `ALTER DATABASE [AdventureWorks2019] SET COMPATIBILITY_LEVEL = 160;`).
 - Scale the target back down to the steady-state SKU recommended by Azure Migrate (e.g.
   General Purpose Gen5 2 vCore).
 - Recreate scheduled work as **Elastic Jobs** or **Azure Automation** runbooks (SQL Agent jobs
@@ -666,207 +636,5 @@ any that do):
 
 ---
 
-## Success criteria checklist
-
-- [ ] Pre-migration remediation completed on the SQL 2019 source (CDC disabled if present)
-- [ ] `sql-<prefix>` logical server confirmed and the target SQL login
-      (`dms_migrator` or the server admin) holds the four required server-level roles
-- [ ] Target server **firewall** allows the SHIR host's public egress IP (or *Allow Azure services*)
-- [ ] The empty target database `<database>` created with the recommended tier (Business Critical
-      if it uses In-Memory OLTP, otherwise General Purpose)
-- [ ] `Microsoft.DataMigration` provider registered (auto with the first DMS instance)
-- [ ] DMS instance `dms-<prefix>` created via the **Select migration scenario** wizard
-- [ ] DMS connectivity to the source validated through the **self-hosted integration runtime**
-      (State = Running)
-- [ ] DMS offline migration completed for `<database>` with **Migrate Missing Schema**
-      enabled; status = **Succeeded**
-- [ ] Row counts match between source and target
-- [ ] Smoke test executes successfully on the migrated database
-- [ ] Post-migration tasks captured for follow-up challenges; statistics updated and compat
-      level raised where applicable
-
----
-
-## Annex A — Pre-migration remediation queries (run on SQL 2019)
-
-```sql
--- Cross-database references (must be removed for Azure SQL DB)
-SELECT DISTINCT
-    referencing_object  = QUOTENAME(OBJECT_SCHEMA_NAME(d.referencing_id)) + '.' + QUOTENAME(OBJECT_NAME(d.referencing_id)),
-    referenced_database = d.referenced_database_name
-FROM sys.sql_expression_dependencies d
-WHERE d.referenced_database_name IS NOT NULL
-  AND d.referenced_database_name <> DB_NAME();
-
--- SQL Agent jobs that touch the source databases
-USE msdb;
-SELECT j.name AS job_name, s.command
-FROM dbo.sysjobs j
-JOIN dbo.sysjobsteps s ON s.job_id = j.job_id
-WHERE s.command LIKE '%<database>%';
-
--- Linked servers
-SELECT name, product, provider, data_source FROM sys.servers WHERE server_id > 0;
-
--- Unsupported CLR (UNSAFE / EXTERNAL_ACCESS)
-SELECT name, permission_set_desc FROM sys.assemblies
-WHERE is_user_defined = 1 AND permission_set_desc IN ('UNSAFE', 'EXTERNAL_ACCESS');
-
--- CDC enabled databases (must be disabled before DMS migration)
-SELECT name, is_cdc_enabled FROM sys.databases WHERE is_cdc_enabled = 1;
-```
-
-To disable CDC on a database before migration:
-
-```sql
-USE <database>;
-EXEC sys.sp_cdc_disable_db;
-```
-
-## Annex B — Validation queries (run on both source and target)
-
-```sql
--- Row counts per user table
-SELECT
-    schema_name = s.name,
-    table_name  = t.name,
-    row_count   = SUM(p.rows)
-FROM sys.tables t
-JOIN sys.schemas s ON s.schema_id = t.schema_id
-JOIN sys.partitions p ON p.object_id = t.object_id AND p.index_id IN (0,1)
-GROUP BY s.name, t.name
-ORDER BY s.name, t.name;
-
--- Object counts by type
-SELECT type_desc, COUNT(*) AS object_count
-FROM sys.objects
-WHERE is_ms_shipped = 0
-GROUP BY type_desc
-ORDER BY type_desc;
-
--- Sample checksum on a representative table (replace [Sales].[Orders])
-SELECT COUNT_BIG(*) AS row_count, CHECKSUM_AGG(BINARY_CHECKSUM(*)) AS table_checksum
-FROM [Sales].[Orders];
-```
-
-## Annex C — Troubleshooting cheatsheet
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| DMS cannot connect to the source | DMS cannot reach the source VM on TCP 1433 (NSG / firewall) | Allow inbound 1433 from the DMS service; for isolated sources register a [Self-hosted Integration Runtime](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service) |
-| Wizard **Next** button greyed on schema/table step | No tables on target and `Migrate Missing Schema` not checked | Check the **Migrate Missing schema** box |
-| Migration fails immediately with target login error | The target SQL login lacks the four server-level roles | Re-run the `CREATE LOGIN … / ALTER SERVER ROLE` script (Prerequisites → Target Azure SQL Database permissions) |
-| Target connection fails with `Client with IP address '…' is not allowed` (40615) | Target server firewall does not allow the SHIR host's egress IP | Add the SHIR host public IP to the target server firewall (Prerequisites → Allow the SHIR to reach the target) |
-| Migration fails at **Preparing for copy** with source login error | Source login lacks `db_owner` for schema migration | Grant `db_owner` to the migration login on each source DB |
-| Migration fails with **collation mismatch** | Target collation differs from source | Re-create target DB with matching collation, or set `--target-db-collation` |
-| Slow migration on large table | Log-rate throttling on target | Scale target to Business Critical 8 vCore (96 MB/s) or Hyperscale for the migration window |
-| `Cannot open server` from the source VM | Firewall rule missing for lab admin IP | Add SQL server firewall rule for the current IP |
-| CDC re-enable fails on target after migration | CDC was left enabled on source; DMS migrated CDC objects | Disable CDC on source before migration, re-create CDC fresh on target |
-
-## Annex D — Alternative: schema-first with SqlPackage (DACPAC)
-
-The official DMS tutorial mentions alternative schema-migration tooling. If your team prefers a
-separate schema deployment step (e.g. to gate on SqlPackage validation before running DMS),
-extract a DACPAC from SQL 2019 and publish it to the empty Azure SQL DB **before** running the
-DMS wizard, and **do not** check the `Migrate Missing Schema` box in Step 4.6.
-
-```powershell
-$src = "vm-<prefix>-sql,1433"
-$out = "C:\Lab\dacpacs"
-$db  = "<database>"
-New-Item -ItemType Directory -Path $out -Force | Out-Null
-
-& SqlPackage.exe `
-  /Action:Extract `
-  /SourceServerName:$src /SourceDatabaseName:$db `
-  /SourceUser:sa /SourcePassword:"<sql2019-sa-password>" `
-  /TargetFile:"$out\$db.dacpac"
-
-# Target uses SQL authentication — publish with the target SQL login.
-$tgt = "sql-<prefix>.database.windows.net"
-& SqlPackage.exe `
-  /Action:Publish `
-  /SourceFile:"$out\$db.dacpac" `
-  /TargetServerName:$tgt /TargetDatabaseName:$db `
-  /TargetUser:dms_migrator /TargetPassword:"<strong-password>" `
-  /p:BlockOnPossibleDataLoss=false /p:DropObjectsNotInSource=false
-```
-```
-
-The
-[SQL Database Projects extension for VS Code](https://learn.microsoft.com/en-us/sql/tools/sql-database-projects/sql-database-projects)
-is another supported alternative for repeatable schema deployments.
-
-## Annex E — Custom Azure RBAC role for DMS migrations
-
-From [custom-roles](https://learn.microsoft.com/en-us/data-migration/sql-server/database/custom-roles?view=azuresql).
-Save as `DmsCustomRoleDemoForSqlDB.json` and create with
-`az role definition create --role-definition DmsCustomRoleDemoForSqlDB.json`.
-
-```json
-{
-  "properties": {
-    "roleName": "DmsCustomRoleDemoForSqlDB",
-    "description": "Least-privilege custom role to run DMS migrations to Azure SQL Database",
-    "assignableScopes": [
-      "/subscriptions/<SQLDatabaseSubscription>/resourceGroups/<SQLDatabaseResourceGroup>",
-      "/subscriptions/<DatabaseMigrationServiceSubscription>/resourceGroups/<DatabaseMigrationServiceResourceGroup>"
-    ],
-    "permissions": [
-      {
-        "actions": [
-          "Microsoft.Sql/servers/read",
-          "Microsoft.Sql/servers/write",
-          "Microsoft.Sql/servers/databases/read",
-          "Microsoft.Sql/servers/databases/write",
-          "Microsoft.Sql/servers/databases/delete",
-          "Microsoft.DataMigration/locations/operationResults/read",
-          "Microsoft.DataMigration/locations/operationStatuses/read",
-          "Microsoft.DataMigration/locations/sqlMigrationServiceOperationResults/read",
-          "Microsoft.DataMigration/databaseMigrations/write",
-          "Microsoft.DataMigration/databaseMigrations/read",
-          "Microsoft.DataMigration/databaseMigrations/delete",
-          "Microsoft.DataMigration/databaseMigrations/cancel/action",
-          "Microsoft.DataMigration/sqlMigrationServices/write",
-          "Microsoft.DataMigration/sqlMigrationServices/delete",
-          "Microsoft.DataMigration/sqlMigrationServices/read",
-          "Microsoft.DataMigration/sqlMigrationServices/listAuthKeys/action",
-          "Microsoft.DataMigration/sqlMigrationServices/regenerateAuthKeys/action",
-          "Microsoft.DataMigration/sqlMigrationServices/deleteNode/action",
-          "Microsoft.DataMigration/sqlMigrationServices/listMonitoringData/action",
-          "Microsoft.DataMigration/sqlMigrationServices/listMigrations/read",
-          "Microsoft.DataMigration/sqlMigrationServices/MonitoringData/read",
-          "Microsoft.DataMigration/SqlMigrationServices/tasks/read",
-          "Microsoft.DataMigration/SqlMigrationServices/tasks/write",
-          "Microsoft.DataMigration/SqlMigrationServices/tasks/delete"
-        ],
-        "notActions": [],
-        "dataActions": [],
-        "notDataActions": []
-      }
-    ]
-  }
-}
-```
-
-Provisioning a new DMS instance still requires **Owner** or **Contributor** at the subscription
-level — the custom role above only covers DMS + SQL operations within the assigned scopes.
-
-## Annex F — Update statistics on the target after migration
-
-```sql
--- Run on each migrated database on Azure SQL DB
-DECLARE @sql nvarchar(max) = N'';
-SELECT @sql = STRING_AGG(
-    CONVERT(nvarchar(max),
-        N'UPDATE STATISTICS ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name)
-        + N' WITH FULLSCAN;'
-    ), CHAR(10))
-FROM sys.tables t
-JOIN sys.schemas s ON s.schema_id = t.schema_id;
-EXEC sp_executesql @sql;
-```
-
----
-
 [Previous Solution](../challenge-01/solution-01.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-03/solution-03.md)
+
