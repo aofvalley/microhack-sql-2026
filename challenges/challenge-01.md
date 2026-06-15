@@ -25,7 +25,7 @@ The lab uses a single source instance, assessed against the full set of Azure SQ
 
 | Source | Targets evaluated | Feeds |
 |---|---|---|
-| The **SQL Server 2019** IaaS VM `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) with restored sample databases (AdventureWorks2019 / WideWorldImporters / AdventureWorksDW2019) | Azure SQL Database · Azure SQL Managed Instance · SQL Server on Azure VM (IaaS) | Challenge 2 (DMS → Azure SQL Database) and Challenge 3 (MI Link → Azure SQL Managed Instance) |
+| The **SQL Server 2019** IaaS VM `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) with the restored sample databases **AdventureWorks2019** and **WideWorldImporters** | Azure SQL Database · Azure SQL Managed Instance · SQL Server on Azure VM (IaaS) | Challenge 2 (DMS → Azure SQL Database) and Challenge 3 (MI Link → Azure SQL Managed Instance) |
 
 Assess this instance against every target so each subsequent migration challenge — and any IaaS
 rehost decision — starts from the same documented findings.

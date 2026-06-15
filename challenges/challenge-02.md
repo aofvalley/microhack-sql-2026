@@ -21,7 +21,7 @@ database when migrating more than one at scale.
 | Item | Value |
 |---|---|
 | Source server | SQL Server 2019 on `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`), the Challenge 1 VM |
-| Source database | `<database>` — a single database (use the actual name from Challenge 1) |
+| Source database | **AdventureWorks2019** — a single application database restored on the source instance (the other available database, **WideWorldImporters**, is reserved for the Challenge 3 MI Link path) |
 | Target service | Azure SQL Database (single database, **not** Managed Instance) |
 | Target logical server | `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`, **SQL authentication**) |
 | Target SKU baseline | General Purpose Gen5, 2–4 vCore (use the Azure Migrate recommendation from Challenge 1). Scale up to Business Critical Gen5 8 vCore during migration if log throttling becomes the bottleneck (see the [migration guide](https://learn.microsoft.com/en-us/data-migration/sql-server/database/guide?view=azuresql)). |
@@ -31,7 +31,7 @@ database when migrating more than one at scale.
 
 > **Target authentication and prerequisites.** The Azure SQL Database target uses **SQL
 > authentication** (a SQL login on the logical server), not Entra-only auth. DMS does **not**
-> create the target database — pre-create an **empty** `<database>` sized per the Azure Migrate
+> create the target database — pre-create an **empty** `AdventureWorks2019` sized per the Azure Migrate
 > recommendation before you start the wizard, and open the Azure SQL **server firewall** so the
 > SHIR/source network can reach it. The Managed Instance Link path is covered in Challenge 3.
 
@@ -39,7 +39,7 @@ database when migrating more than one at scale.
 
 * Apply pre-migration remediation from the Challenge 1 backlog (e.g. remove cross-database
   queries, externalize SQL Agent jobs, drop unsupported objects) on the SQL Server 2019 source.
-* Pre-create the **empty** target Azure SQL Database `<database>` on the existing logical server
+* Pre-create the **empty** target Azure SQL Database `AdventureWorks2019` on the existing logical server
   `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`), sized per the Azure Migrate recommendation, and
   open the Azure SQL **server firewall** so the source network can reach it.
 * Register the **Microsoft.DataMigration** resource provider and assign the required RBAC roles
@@ -52,7 +52,7 @@ database when migrating more than one at scale.
   logical server granting the four required server-level roles (`##MS_DatabaseManager##`,
   `##MS_DatabaseConnector##`, `##MS_DefinitionReader##`, `##MS_LoginManager##`).
 * Run an **offline** DMS migration with **Migrate Missing Schema** enabled so DMS deploys both the
-  schema and the data for `<database>`.
+  schema and the data for `AdventureWorks2019`.
 * Validate connectivity, row counts, and a smoke-test query against the migrated Azure SQL
   Database, then run the post-migration tasks (update statistics, raise compatibility level).
 
