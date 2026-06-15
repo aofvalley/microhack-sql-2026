@@ -617,26 +617,6 @@ Create or select an action group named `ag-microhack-sql-ops`. Add an email rece
 
 ![Alert action group email teams](../../Images/c4-step-16-create-action-group.png)
 
-## Step 8 — Validate fixes
-
-Apply the chosen fix: force the known good Query Store plan, add the missing index if justified, or reduce the synthetic workload. Then re-run the same load test from Step 2 and compare the before/after evidence.
-
-Suggested validation checklist:
-
-1. The DMV query from Step 3 no longer shows the same statement dominating total CPU.
-2. Query Store shows the selected plan as forced and `force_failure_count = 0`.
-3. Azure portal metrics show CPU returning below the alert threshold.
-4. The Log Analytics CPU timechart stabilizes after the fix window.
-5. The high CPU alert does not fire again during the validation run.
-
-![Query Store forced plan validation](../../Images/c2-step-19-query-store-forced-plan-validation.png)
-
-![Resolved metrics CPU stabilized](../../Images/c2-step-20-resolved-metrics-cpu-stabilized.png)
-
-![Alert rule healthy state](../../Images/c2-step-21-alert-rule-healthy-state.png)
-
-At this point you have used the same layers you would use in a production incident: engine-level DMVs, persisted Query Store telemetry, Azure portal metrics, diagnostic logs in Log Analytics, and Azure Monitor alerting. In a real engagement, document the root cause, the evidence, the remediation, and the post-fix baseline.
-
 
 ---
 
