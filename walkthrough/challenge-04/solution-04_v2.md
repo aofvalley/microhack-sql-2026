@@ -42,7 +42,7 @@ Connect to the migrated database `AdventureWorks2019`, from SQL Server Managemen
 > **Multi-team deployments:** If your lab uses team-prefixed databases (e.g., `TEAM01_AdventureWorks2019`), replace every `AdventureWorks2019` reference in this walkthrough with your team-prefixed database name.
 
 Run a synthetic workload for 10-15 minutes so the portal, Query Store, DMVs, and Log Analytics all have enough signal. The following script deliberately creates CPU pressure, logical reads, a cursor loop, and a missing-index-style scan.
-(Do not wait for the script to finish as it will take a very long time)
+(The script execution should take around 10 minutes)
 
 ```sql
 USE AdventureWorks2019;
