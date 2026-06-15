@@ -7,11 +7,11 @@
 > **Timing:** Allow 45–60 minutes for Steps 1–7. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
 
 ## Step 0 — Establish admin
-First of all we need to define the administator of the managed instance. Select you own user here,as the administrador of the Managed Instance:
+First of all we need to define the administator of the managed instance. Select you own user here, as the administrador of the Managed Instance:
 
 ![SQL MI diagnostic settings blade](../../Images/c4-step-0-set-admin.png)
 
-If the SQL Managed instance does not contain a database named AdventureWorks2019, please, find a dacpac file in the docs folder, download it and import the dacpac in the Managed Instance:
+If the SQL Managed instance does not contain a database named AdventureWorks2019, please, find a dacpac file in the docs folder, download it and import the it as a new database in the Managed Instance:
 
 ![Import dacpac](../../Images/c4-step-0-dacpac.png)
 
@@ -547,7 +547,7 @@ Plan 4 presents worse times, as it is the one without the index. From this scree
 
 ![SSMS Query Store highest consumption 2](../../Images/c4-step-14-query-store-queries-highest-consumption2.png)
 
-Compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL.
+Compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL (keep in mind that, if the selected plan was based on a dropped index, this index need to be re-created to force the engine back to this specific plan).
 
 ![SSMS Query Store highest consumption 2](../../Images/c4-step-15-query-store-force-plan-execution.png)
 
