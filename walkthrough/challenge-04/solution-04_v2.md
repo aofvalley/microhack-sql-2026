@@ -429,61 +429,204 @@ AzureDiagnostics
 ![KQL wait stats trend chart](../../Images/c4-step4-SQLMI-WaitStats-Chart.png)
 
 ## Step 6 — Use Query Store for regression analysis
-
 Query Store is supported on Azure SQL Managed Instance and is the best built-in feature for query regression analysis because it persists query text, runtime statistics, waits, and plans over time.
 
 Query Store is **enabled by default** on Azure SQL MI for newly created and migrated databases. Verify and adjust the configuration for the lab:
 
 ```sql
--- Verify Query Store is already active (expected: READ_WRITE).
-SELECT actual_state_desc FROM sys.database_query_store_options;
+-- Clear all existing Query Store data
+ALTER DATABASE AdventureWorks2019 SET QUERY_STORE CLEAR ALL;
 GO
 
--- Ensure it is on and configure lab-friendly settings.
-ALTER DATABASE AdventureWorks2019 SET QUERY_STORE = ON;
-GO
-
-ALTER DATABASE AdventureWorks2019 SET QUERY_STORE (
+-- Configure Query Store to capture ALL queries immediately
+ALTER DATABASE AdventureWorks2019
+SET QUERY_STORE = ON
+(
     OPERATION_MODE = READ_WRITE,
-    QUERY_CAPTURE_MODE = AUTO,
-    WAIT_STATS_CAPTURE_MODE = ON,
-    CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30),
-    DATA_FLUSH_INTERVAL_SECONDS = 900,
-    INTERVAL_LENGTH_MINUTES = 15,
-    MAX_STORAGE_SIZE_MB = 1024
+    QUERY_CAPTURE_MODE = ALL,              -- Capture everything
+    MAX_STORAGE_SIZE_MB = 1000,
+    INTERVAL_LENGTH_MINUTES = 1,           -- Short intervals for quick results
+    SIZE_BASED_CLEANUP_MODE = AUTO,
+    MAX_PLANS_PER_QUERY = 200,
+    DATA_FLUSH_INTERVAL_SECONDS = 60
 );
 GO
 ```
 
-In SSMS, expand the migrated database → **Query Store**. Open **Top Resource Consuming Queries**, **Regressed Queries**, and **Queries With Forced Plans**. Run the workload again and refresh the reports.
-
-![SSMS Query Store reports node](../../Images/c2-step-14-ssms-query-store-reports-node.png)
-
-When you identify a regressed query, compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL:
+Now we are going to generate load to see a query with different executions plans:
 
 ```sql
--- Replace with the query_id and plan_id from Query Store reports.
-EXEC sys.sp_query_store_force_plan
-    @query_id = 42,
-    @plan_id = 7;
+-- Clear all existing Query Store data
+ALTER DATABASE AdventureWorks2019 SET QUERY_STORE CLEAR ALL;
 GO
 
-SELECT
-    qsq.query_id,
-    qsp.plan_id,
-    qsp.is_forced_plan,
-    qsp.force_failure_count,
-    qsp.last_force_failure_reason_desc,
-    qsqt.query_sql_text
-FROM sys.query_store_query AS qsq
-JOIN sys.query_store_plan AS qsp
-    ON qsq.query_id = qsp.query_id
-JOIN sys.query_store_query_text AS qsqt
-    ON qsq.query_text_id = qsqt.query_text_id
-WHERE qsp.is_forced_plan = 1;
+-- Configure Query Store to capture ALL queries immediately
+ALTER DATABASE AdventureWorks2019
+SET QUERY_STORE = ON
+(
+    OPERATION_MODE = READ_WRITE,
+    QUERY_CAPTURE_MODE = ALL,              -- Capture everything
+    MAX_STORAGE_SIZE_MB = 1000,
+    INTERVAL_LENGTH_MINUTES = 1,           -- Short intervals for quick results
+    SIZE_BASED_CLEANUP_MODE = AUTO,
+    MAX_PLANS_PER_QUERY = 200,
+    DATA_FLUSH_INTERVAL_SECONDS = 60
+);
+GO
 ```
 
-![Query Store regressed query plan comparison](../../Images/c2-step-15-query-store-regressed-query-plan-comparison.png)
+
+Now we create a stored procedure to run a specifc query, first with the needed indexing for performance and then, dropping this index to verify the performance degradation:
+
+```sql
+DROP PROCEDURE IF EXISTS dbo.usp_GetSalesOrdersByCustomer;
+GO
+
+CREATE PROCEDURE dbo.usp_GetSalesOrdersByCustomer
+    @CustomerID INT = 29825  -- Default customer with many orders
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- This query will perform DRAMATICALLY differently with/without index
+    -- With index: Index Seek (milliseconds)
+    -- Without index: Table Scan of 31K+ rows (much slower)
+    
+    SELECT 
+        soh.SalesOrderID,
+        soh.OrderDate,
+        soh.DueDate,
+        soh.ShipDate,
+        soh.Status,
+        soh.SubTotal,
+        soh.TaxAmt,
+        soh.Freight,
+        soh.TotalDue,
+        c.AccountNumber,
+        p.FirstName + ' ' + p.LastName AS CustomerName,
+        st.Name AS TerritoryName,
+        COUNT(sod.SalesOrderDetailID) AS LineItemCount,
+        SUM(sod.LineTotal) AS OrderLineTotal
+    FROM Sales.SalesOrderHeader soh
+    INNER JOIN Sales.Customer c ON soh.CustomerID = c.CustomerID
+    INNER JOIN Person.Person p ON c.PersonID = p.BusinessEntityID
+    LEFT JOIN Sales.SalesTerritory st ON soh.TerritoryID = st.TerritoryID
+    INNER JOIN Sales.SalesOrderDetail sod ON soh.SalesOrderID = sod.SalesOrderID
+    WHERE soh.CustomerID = @CustomerID
+    GROUP BY 
+        soh.SalesOrderID,
+        soh.OrderDate,
+        soh.DueDate,
+        soh.ShipDate,
+        soh.Status,
+        soh.SubTotal,
+        soh.TaxAmt,
+        soh.Freight,
+        soh.TotalDue,
+        c.AccountNumber,
+        p.FirstName,
+        p.LastName,
+        st.Name
+    ORDER BY soh.OrderDate DESC;
+END;
+GO
+
+-- Check if the critical index exists
+IF NOT EXISTS (
+    SELECT 1 
+    FROM sys.indexes 
+    WHERE name = 'IX_SalesOrderHeader_CustomerID' 
+    AND object_id = OBJECT_ID('Sales.SalesOrderHeader')
+)
+BEGIN
+    PRINT 'Index does not exist - creating it...';
+    CREATE NONCLUSTERED INDEX IX_SalesOrderHeader_CustomerID 
+    ON Sales.SalesOrderHeader (CustomerID)
+    INCLUDE (OrderDate, TotalDue, Status, SubTotal, TaxAmt, Freight, DueDate, ShipDate, TerritoryID, SalesOrderID);
+    PRINT 'Index created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'Index already exists - ready for baseline testing.';
+END
+```
+
+Now we will execute the procedure 40 times, to get result for the optimized query:
+
+```sql
+-- Clear execution plan cache to ensure fresh execution
+DBCC FREEPROCCACHE;
+GO
+
+-- Execute multiple times to establish a solid baseline
+EXEC dbo.usp_GetSalesOrdersByCustomer @CustomerID = 29825;
+GO 30  -- Run 30 times
+```
+
+Now we check the baseline performance:
+
+```sql
+SELECT 
+    'BASELINE (with index)' AS Phase,
+    COUNT(rs.plan_id) AS Executions,
+    AVG(rs.avg_duration) / 1000.0 AS AvgDurationMs,
+    AVG(rs.avg_cpu_time) / 1000.0 AS AvgCpuMs,
+    AVG(rs.avg_logical_io_reads) AS AvgLogicalReads
+FROM sys.query_store_query q
+JOIN sys.query_store_plan p ON q.query_id = p.query_id
+JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
+WHERE q.object_id = OBJECT_ID('dbo.usp_GetSalesOrdersByCustomer');
+```
+
+Now, we drop the index and execute the Stored Procedure 30 times :
+
+```sql
+DROP INDEX IX_SalesOrderHeader_CustomerID ON Sales.SalesOrderHeader;
+GO
+
+
+-- Clear plan cache to force recompile with new (worse) plan
+DBCC FREEPROCCACHE;
+GO
+
+
+EXEC dbo.usp_GetSalesOrdersByCustomer @CustomerID = 29825;
+GO 30  -- Run 30 times with poor performance
+```
+
+Now we can see the times it took to execute the query depending on the plan:
+
+```sql
+SELECT TOP 5
+    q.query_id,
+    OBJECT_NAME(q.object_id) AS StoredProcedure,
+    p.plan_id,
+    rs.runtime_stats_interval_id,
+    rsi.start_time AS IntervalStart,
+    rs.count_executions AS Executions,
+    rs.avg_duration / 1000.0 AS AvgDurationMs,
+    rs.avg_cpu_time / 1000.0 AS AvgCpuMs,
+    rs.avg_logical_io_reads AS AvgLogicalReads,
+    rs.avg_physical_io_reads AS AvgPhysicalReads,
+    TRY_CAST(p.query_plan AS XML) AS QueryPlan
+FROM sys.query_store_query q
+JOIN sys.query_store_plan p ON q.query_id = p.query_id
+JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
+JOIN sys.query_store_runtime_stats_interval rsi ON rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+WHERE q.object_id = OBJECT_ID('dbo.usp_GetSalesOrdersByCustomer')
+ORDER BY rsi.start_time, p.plan_id;
+```
+
+The previous query returns both queries and the execution plans associated, as well as the times it the query took
+
+![SSMS Query Store highest consumption](../../Images/c4-step-13-query-store-queries-highest-consumption.png)
+
+
+In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans ans explore the differences:
+
+![SSMS Query Store highest consumption 2](../../Images/c4-step-14-query-store-queries-highest-consumption2.png)
+
+Compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL.
 
 ![SSMS Query Store highest consumption 2](../../Images/c4-step-15-query-store-force-plan-execution.png)
 
