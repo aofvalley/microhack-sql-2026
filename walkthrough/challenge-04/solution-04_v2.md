@@ -611,13 +611,11 @@ The T-SQL query above (`sys.database_automatic_tuning_options`) is the way to co
 
 Next, create an Azure Monitor alert. Open **Monitoring** → **Alerts** → **Create** → **Alert rule**. Use scope `sqlmi-microhack-2026`, signal **Average CPU percentage**, threshold **Greater than 80**, aggregation **Average**, evaluation frequency **1 minute**, and lookback/window **5 minutes**.
 
-![Create alert rule condition](../../Images/c4-step-17-create-action-group.png)
+![Create alert rule condition](../../Images/c4-step-17-create-alert-rule.png)
 
 Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator. 
 
-REMOVE!!!!!For Teams notifications, use a **Workflows connector** (Power Automate) instead of the deprecated Office 365 Incoming Webhooks — create a workflow in Teams that posts to a channel when triggered by an HTTP request, then add that workflow URL as a webhook receiver in the action group. Name the alert `sqlmi-high-cpu-80pct-10m` and set severity to 2.
-
-![Alert action group email teams](../../Images/c4-step-17-create-alert-rule.png)
+![Alert action group email teams](../../Images/c4-step-16-create-action-group.png)
 
 ## Step 8 — Validate fixes
 
