@@ -20,13 +20,13 @@ database when migrating more than one at scale.
 
 | Item | Value |
 |---|---|
-| Source server | SQL Server 2019 (`vm-<prefix>-sql`, the Challenge 1 VM) |
+| Source server | SQL Server 2019 on `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`), the Challenge 1 VM |
 | Source database | `<database>` — a single database (use the actual name from Challenge 1) |
 | Target service | Azure SQL Database (single database, **not** Managed Instance) |
-| Target logical server | `sql-<prefix>` (**SQL authentication**) |
+| Target logical server | `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`, **SQL authentication**) |
 | Target SKU baseline | General Purpose Gen5, 2–4 vCore (use the Azure Migrate recommendation from Challenge 1). Scale up to Business Critical Gen5 8 vCore during migration if log throttling becomes the bottleneck (see the [migration guide](https://learn.microsoft.com/en-us/data-migration/sql-server/database/guide?view=azuresql)). |
 | Migration service | Azure Database Migration Service (offline mode) |
-| Migration runtime | Self-hosted Integration Runtime (SHIR) **v5.37+** on the source network (the same VM that hosts the source instance) |
+| Migration runtime | Self-hosted Integration Runtime (SHIR) **v5.37+** on the source network (the same VM that hosts the source instance, `<prefix>u<NN>-srcvm19`) |
 | Migration mode | **Offline only** — online migration is not available for Azure SQL Database targets |
 
 > **Target authentication and prerequisites.** The Azure SQL Database target uses **SQL
@@ -40,14 +40,14 @@ database when migrating more than one at scale.
 * Apply pre-migration remediation from the Challenge 1 backlog (e.g. remove cross-database
   queries, externalize SQL Agent jobs, drop unsupported objects) on the SQL Server 2019 source.
 * Pre-create the **empty** target Azure SQL Database `<database>` on the existing logical server
-  `sql-<prefix>`, sized per the Azure Migrate recommendation, and open the Azure SQL **server
-  firewall** so the source network can reach it.
+  `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`), sized per the Azure Migrate recommendation, and
+  open the Azure SQL **server firewall** so the source network can reach it.
 * Register the **Microsoft.DataMigration** resource provider and assign the required RBAC roles
   (built-in roles, or the custom DMS role described in the
   [custom roles documentation](https://learn.microsoft.com/en-us/data-migration/sql-server/database/custom-roles?view=azuresql)).
 * Provision the **Azure Database Migration Service** instance and configure a **Self-hosted
-  Integration Runtime** (SHIR v5.37+) on the source network so DMS can reach the SQL Server 2019
-  instance.
+  Integration Runtime** (SHIR v5.37+) on the source network (the source VM `<prefix>u<NN>-srcvm19`)
+  so DMS can reach the SQL Server 2019 instance.
 * Create the source SQL login DMS uses to read the instance, and a target migration login on the
   logical server granting the four required server-level roles (`##MS_DatabaseManager##`,
   `##MS_DatabaseConnector##`, `##MS_DefinitionReader##`, `##MS_LoginManager##`).
@@ -59,7 +59,7 @@ database when migrating more than one at scale.
 ## Success criteria
 
 * The database is migrated to Azure SQL Database and visible on the target logical server
-  `sql-<prefix>`.
+  `<prefix>u<NN>-sqlsrv-…` (e.g. `mhu01-sqlsrv-…`).
 * DMS reports a **Succeeded** status for the migration in the **Monitor migrations** view.
 * Row counts on the target match the source for a representative table (use the
   `Annex — Validation queries` from the walkthrough).
