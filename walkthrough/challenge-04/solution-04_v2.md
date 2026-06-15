@@ -2,12 +2,6 @@
 
 [Previous Solution](../challenge-03/solution-03.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-05/solution-05.md)
 
-## What changed since the original
-
-The core monitoring flow from the original SQL Modernization MicroHack still applies: generate pressure on the migrated workload, identify the expensive query or stored procedure, validate the symptom in the Azure portal, and use Log Analytics to correlate resource pressure with waits, blocking, errors, and Query Store telemetry. The 2026 edition keeps Azure SQL Managed Instance (MI) as the target service and updates the monitoring path to emphasize **Azure Monitor for SQL**, **Diagnostic settings to Log Analytics**, **Query Store on Managed Instance**, and **Intelligent Insights signals** exposed through diagnostic categories such as `SQLInsights`, `QueryStoreRuntimeStatistics`, `QueryStoreWaitStatistics`, and `Errors`.
-
-For teams that want a richer fleet view, Microsoft is also introducing **Database Watcher** as a preview-era monitoring experience for Azure SQL estates. Treat it as an optional enhancement for this lab: the mandatory path remains SQL MI diagnostics → Log Analytics workspace → KQL queries → Query Store/DMV analysis. Resource names continue from Solution 1, including `rg-microhack-sql-2026`, `sqlmi-microhack-2026`, and the Log Analytics workspace `la-microhack-sql`.
-
 > **Lab scenario:** Users report that the migrated CRM workload is slow after recent stored procedure changes. You will create monitoring signal, find the highest CPU consumers, inspect portal metrics and Log Analytics records, then apply Query Store and tuning features to validate the fix.
 
 > **Timing:** Allow 45–60 minutes for Steps 1–8. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
@@ -277,6 +271,34 @@ In **Logs** tab, in the right top corner try the new **Observability agent**, a 
 
 ![Observability agent](../../Images/c4-step4-SQLMI-Observability-Agent.png)
 
+### Try these questions with the Observability agent
+
+The agent has access to the same metrics, diagnostic logs, and resource health signals you just opened in the portal. Use it to **shortcut the manual KQL and DMV work** of Steps 3, 5 and 6 — then validate its answers against the queries you ran yourself. Ask the questions below in order; each one builds on the previous answer the same way a real incident investigation does.
+
+> **Tip:** Keep each prompt **short and single-focus**. The agent is slow on compound questions ("when, how long, and peak…") because it runs a separate KQL query per intent. One question = one signal = a fast answer. Ask in order; each builds on the previous.
+
+> **Tip:** The agent is a *temporary* chat — copy answers you want to keep before closing the blade.
+
+1. **"Show CPU usage for the last hour."**
+   - *Why ask:* Anchors the investigation to a concrete time window. Every later query (DMV, Log Analytics, Query Store) should target that window so you can compare apples to apples.
+
+2. **"Is the current pressure CPU or IO?"**
+   - *Why ask:* The Step 2 workload hits both. Knowing which dominates tells you whether to fix queries/indexes (CPU/IO) or scale vCores (capacity).
+
+3. **"Top 5 CPU-consuming queries on `AdventureWorks2019` in the last hour."**
+   - *Why ask:* The agent's version of the Step 3 DMV query. If `usp_MicroHackCpuPressure` / `usp_MicroHackCursorPressure` appear, your diagnostic settings from Step 1 are working end-to-end.
+
+4. **"Top wait types on `AdventureWorks2019` right now."**
+   - *Why ask:* Waits explain *why* a query is slow, not just *that* it is. Natural-language equivalent of Step 5 Query 5 and the `sys.dm_os_wait_stats` snapshot in Step 3.
+
+5. **"Any missing-index recommendations for `AdventureWorks2019`?"**
+   - *Why ask:* Catches the non-SARGable `LEFT(LastName, 2) = 'Sm'` scan and the CROSS JOIN from Step 2. Missing-index hints are the highest-signal recommendations and map directly to the Step 8 remediation.
+
+6. **"Give me a KQL query to chart CPU per database for the last 6 hours."**
+   - *Why ask:* Turns the agent into a launchpad for Step 5 — leaves you with a ready-to-paste KQL query instead of writing one from scratch.
+
+> **Lab discipline:** Always cross-check the agent's answers against the DMV results from Step 3 and the Query Store reports from Step 6. 
+
 ## Step 5 — Query Log Analytics with KQL
 
 Open the Log Analytics workspace `la-microhack-sql` → **Logs**. The diagnostic records land in the `AzureDiagnostics` table. In many workspaces string and numeric diagnostic fields have suffixes such as `_s`, `_d`, `_g`, and `_b`; use `project`/`getschema` if your column names differ.
@@ -396,7 +418,7 @@ This query trends waits by category so you can distinguish CPU, IO, lock, memory
 AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where Category == "QueryStoreWaitStatistics"
-| extend database_name = coalesce(DatabaseName_s, database_name_s, Resource)
+| extend database_name = coalesce(DatabaseName_s, Resource)
 | extend wait_category = coalesce(wait_category_s, wait_category_desc_s, "unknown")
 | extend total_wait_ms = todouble(total_query_wait_time_ms_d)
 | summarize total_wait_ms = sum(total_wait_ms) by database_name, wait_category, bin(TimeGenerated, 15m)
@@ -413,199 +435,55 @@ Query Store is supported on Azure SQL Managed Instance and is the best built-in 
 Query Store is **enabled by default** on Azure SQL MI for newly created and migrated databases. Verify and adjust the configuration for the lab:
 
 ```sql
--- Clear all existing Query Store data
-ALTER DATABASE AdventureWorks2019 SET QUERY_STORE CLEAR ALL;
+-- Verify Query Store is already active (expected: READ_WRITE).
+SELECT actual_state_desc FROM sys.database_query_store_options;
 GO
 
--- Configure Query Store to capture ALL queries immediately
-ALTER DATABASE AdventureWorks2019
-SET QUERY_STORE = ON
-(
+-- Ensure it is on and configure lab-friendly settings.
+ALTER DATABASE AdventureWorks2019 SET QUERY_STORE = ON;
+GO
+
+ALTER DATABASE AdventureWorks2019 SET QUERY_STORE (
     OPERATION_MODE = READ_WRITE,
-    QUERY_CAPTURE_MODE = ALL,              -- Capture everything
-    MAX_STORAGE_SIZE_MB = 1000,
-    INTERVAL_LENGTH_MINUTES = 1,           -- Short intervals for quick results
-    SIZE_BASED_CLEANUP_MODE = AUTO,
-    MAX_PLANS_PER_QUERY = 200,
-    DATA_FLUSH_INTERVAL_SECONDS = 60
+    QUERY_CAPTURE_MODE = AUTO,
+    WAIT_STATS_CAPTURE_MODE = ON,
+    CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30),
+    DATA_FLUSH_INTERVAL_SECONDS = 900,
+    INTERVAL_LENGTH_MINUTES = 15,
+    MAX_STORAGE_SIZE_MB = 1024
 );
 GO
 ```
 
-Now we are going to generate load to see a query with different executions plans:
+In SSMS, expand the migrated database → **Query Store**. Open **Top Resource Consuming Queries**, **Regressed Queries**, and **Queries With Forced Plans**. Run the workload again and refresh the reports.
+
+![SSMS Query Store reports node](../../Images/c2-step-14-ssms-query-store-reports-node.png)
+
+When you identify a regressed query, compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL:
 
 ```sql
--- Clear all existing Query Store data
-ALTER DATABASE AdventureWorks2019 SET QUERY_STORE CLEAR ALL;
+-- Replace with the query_id and plan_id from Query Store reports.
+EXEC sys.sp_query_store_force_plan
+    @query_id = 42,
+    @plan_id = 7;
 GO
 
--- Configure Query Store to capture ALL queries immediately
-ALTER DATABASE AdventureWorks2019
-SET QUERY_STORE = ON
-(
-    OPERATION_MODE = READ_WRITE,
-    QUERY_CAPTURE_MODE = ALL,              -- Capture everything
-    MAX_STORAGE_SIZE_MB = 1000,
-    INTERVAL_LENGTH_MINUTES = 1,           -- Short intervals for quick results
-    SIZE_BASED_CLEANUP_MODE = AUTO,
-    MAX_PLANS_PER_QUERY = 200,
-    DATA_FLUSH_INTERVAL_SECONDS = 60
-);
-GO
+SELECT
+    qsq.query_id,
+    qsp.plan_id,
+    qsp.is_forced_plan,
+    qsp.force_failure_count,
+    qsp.last_force_failure_reason_desc,
+    qsqt.query_sql_text
+FROM sys.query_store_query AS qsq
+JOIN sys.query_store_plan AS qsp
+    ON qsq.query_id = qsp.query_id
+JOIN sys.query_store_query_text AS qsqt
+    ON qsq.query_text_id = qsqt.query_text_id
+WHERE qsp.is_forced_plan = 1;
 ```
 
-
-Now we create a stored procedure to run a specifc query, first with the needed indexing for performance and then, dropping this index to verify the performance degradation:
-
-```sql
-DROP PROCEDURE IF EXISTS dbo.usp_GetSalesOrdersByCustomer;
-GO
-
-CREATE PROCEDURE dbo.usp_GetSalesOrdersByCustomer
-    @CustomerID INT = 29825  -- Default customer with many orders
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    -- This query will perform DRAMATICALLY differently with/without index
-    -- With index: Index Seek (milliseconds)
-    -- Without index: Table Scan of 31K+ rows (much slower)
-    
-    SELECT 
-        soh.SalesOrderID,
-        soh.OrderDate,
-        soh.DueDate,
-        soh.ShipDate,
-        soh.Status,
-        soh.SubTotal,
-        soh.TaxAmt,
-        soh.Freight,
-        soh.TotalDue,
-        c.AccountNumber,
-        p.FirstName + ' ' + p.LastName AS CustomerName,
-        st.Name AS TerritoryName,
-        COUNT(sod.SalesOrderDetailID) AS LineItemCount,
-        SUM(sod.LineTotal) AS OrderLineTotal
-    FROM Sales.SalesOrderHeader soh
-    INNER JOIN Sales.Customer c ON soh.CustomerID = c.CustomerID
-    INNER JOIN Person.Person p ON c.PersonID = p.BusinessEntityID
-    LEFT JOIN Sales.SalesTerritory st ON soh.TerritoryID = st.TerritoryID
-    INNER JOIN Sales.SalesOrderDetail sod ON soh.SalesOrderID = sod.SalesOrderID
-    WHERE soh.CustomerID = @CustomerID
-    GROUP BY 
-        soh.SalesOrderID,
-        soh.OrderDate,
-        soh.DueDate,
-        soh.ShipDate,
-        soh.Status,
-        soh.SubTotal,
-        soh.TaxAmt,
-        soh.Freight,
-        soh.TotalDue,
-        c.AccountNumber,
-        p.FirstName,
-        p.LastName,
-        st.Name
-    ORDER BY soh.OrderDate DESC;
-END;
-GO
-
--- Check if the critical index exists
-IF NOT EXISTS (
-    SELECT 1 
-    FROM sys.indexes 
-    WHERE name = 'IX_SalesOrderHeader_CustomerID' 
-    AND object_id = OBJECT_ID('Sales.SalesOrderHeader')
-)
-BEGIN
-    PRINT 'Index does not exist - creating it...';
-    CREATE NONCLUSTERED INDEX IX_SalesOrderHeader_CustomerID 
-    ON Sales.SalesOrderHeader (CustomerID)
-    INCLUDE (OrderDate, TotalDue, Status, SubTotal, TaxAmt, Freight, DueDate, ShipDate, TerritoryID, SalesOrderID);
-    PRINT 'Index created successfully.';
-END
-ELSE
-BEGIN
-    PRINT 'Index already exists - ready for baseline testing.';
-END
-```
-
-Now we will execute the procedure 40 times, to get result for the optimized query:
-
-```sql
--- Clear execution plan cache to ensure fresh execution
-DBCC FREEPROCCACHE;
-GO
-
--- Execute multiple times to establish a solid baseline
-EXEC dbo.usp_GetSalesOrdersByCustomer @CustomerID = 29825;
-GO 30  -- Run 30 times
-```
-
-Now we check the baseline performance:
-
-```sql
-SELECT 
-    'BASELINE (with index)' AS Phase,
-    COUNT(rs.plan_id) AS Executions,
-    AVG(rs.avg_duration) / 1000.0 AS AvgDurationMs,
-    AVG(rs.avg_cpu_time) / 1000.0 AS AvgCpuMs,
-    AVG(rs.avg_logical_io_reads) AS AvgLogicalReads
-FROM sys.query_store_query q
-JOIN sys.query_store_plan p ON q.query_id = p.query_id
-JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
-WHERE q.object_id = OBJECT_ID('dbo.usp_GetSalesOrdersByCustomer');
-```
-
-Now, we drop the index and execute the Stored Procedure 30 times :
-
-```sql
-DROP INDEX IX_SalesOrderHeader_CustomerID ON Sales.SalesOrderHeader;
-GO
-
-
--- Clear plan cache to force recompile with new (worse) plan
-DBCC FREEPROCCACHE;
-GO
-
-
-EXEC dbo.usp_GetSalesOrdersByCustomer @CustomerID = 29825;
-GO 30  -- Run 30 times with poor performance
-```
-
-Now we can see the times it took to execute the query depending on the plan:
-
-```sql
-SELECT TOP 5
-    q.query_id,
-    OBJECT_NAME(q.object_id) AS StoredProcedure,
-    p.plan_id,
-    rs.runtime_stats_interval_id,
-    rsi.start_time AS IntervalStart,
-    rs.count_executions AS Executions,
-    rs.avg_duration / 1000.0 AS AvgDurationMs,
-    rs.avg_cpu_time / 1000.0 AS AvgCpuMs,
-    rs.avg_logical_io_reads AS AvgLogicalReads,
-    rs.avg_physical_io_reads AS AvgPhysicalReads,
-    TRY_CAST(p.query_plan AS XML) AS QueryPlan
-FROM sys.query_store_query q
-JOIN sys.query_store_plan p ON q.query_id = p.query_id
-JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
-JOIN sys.query_store_runtime_stats_interval rsi ON rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-WHERE q.object_id = OBJECT_ID('dbo.usp_GetSalesOrdersByCustomer')
-ORDER BY rsi.start_time, p.plan_id;
-```
-
-The previous query returns both queries and the execution plans associated, as well as the times it the query took
-
-![SSMS Query Store highest consumption](../../Images/c4-step-13-query-store-queries-highest-consumption.png)
-
-
-In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans ans explore the differences:
-
-![SSMS Query Store highest consumption 2](../../Images/c4-step-14-query-store-queries-highest-consumption2.png)
-
-Compare the previous plan and current plan. If a known good plan is available, force it from the SSMS report or use T-SQL.
+![Query Store regressed query plan comparison](../../Images/c2-step-15-query-store-regressed-query-plan-comparison.png)
 
 ![SSMS Query Store highest consumption 2](../../Images/c4-step-15-query-store-force-plan-execution.png)
 
@@ -623,17 +501,17 @@ SELECT name, desired_state_desc, actual_state_desc, reason_desc
 FROM sys.database_automatic_tuning_options;
 ```
 
-You can also verify the setting in the Azure portal under `sqlmi-microhack-2026` → **Intelligent Performance** → **Automatic tuning**, if the blade is available for your SQL MI. The T-SQL query above (`sys.database_automatic_tuning_options`) is the most reliable way to confirm the setting on Managed Instance.
+The T-SQL query above (`sys.database_automatic_tuning_options`) is the way to confirm the setting on Managed Instance.
 
-![Automatic tuning options](../../Images/c2-step-16-automatic-tuning-options.png)
+Next, create an Azure Monitor alert. Open **Monitoring** → **Alerts** → **Create** → **Alert rule**. Use scope `sqlmi-microhack-2026`, signal **Average CPU percentage**, threshold **Greater than 80**, aggregation **Average**, evaluation frequency **1 minute**, and lookback/window **5 minutes**.
 
-Next, create an Azure Monitor alert. Open **Monitoring** → **Alerts** → **Create** → **Alert rule**. Use scope `sqlmi-microhack-2026`, signal **CPU percentage**, threshold **Greater than 80**, aggregation **Average**, evaluation frequency **5 minutes**, and lookback/window **10 minutes**.
+![Create alert rule condition](../../Images/c4-step7-SQLMI-Alert-Rule.png)
 
-![Create alert rule condition](../../Images/c2-step-17-create-alert-rule-condition.png)
+Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator. 
 
-Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator. For Teams notifications, use a **Workflows connector** (Power Automate) instead of the deprecated Office 365 Incoming Webhooks — create a workflow in Teams that posts to a channel when triggered by an HTTP request, then add that workflow URL as a webhook receiver in the action group. Name the alert `sqlmi-high-cpu-80pct-10m` and set severity to 2.
+REMOVE!!!!!For Teams notifications, use a **Workflows connector** (Power Automate) instead of the deprecated Office 365 Incoming Webhooks — create a workflow in Teams that posts to a channel when triggered by an HTTP request, then add that workflow URL as a webhook receiver in the action group. Name the alert `sqlmi-high-cpu-80pct-10m` and set severity to 2.
 
-![Alert action group email teams](../../Images/c2-step-18-alert-action-group-email-teams.png)
+![Alert action group email teams](../../Images/c4-step7-SQLMI-Alert-Action-Group.png)
 
 ## Step 8 — Validate fixes
 
