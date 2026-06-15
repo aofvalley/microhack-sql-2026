@@ -583,7 +583,9 @@ The previous query returns both queries and the execution plans associated, as w
 ![SSMS Query Store highest consumption](../../Images/c4-step-13-query-store-queries-highest-consumption.png)
 
 
-In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans ans explore the differences:
+In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. For this, we need to open the Top Resouce Consuming Queries in the Query Store folder.
+
+Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans and explore the differences:
 
 ![SSMS Query Store highest consumption 2](../../Images/c4-step-14-query-store-queries-highest-consumption2.png)
 
@@ -609,13 +611,13 @@ The T-SQL query above (`sys.database_automatic_tuning_options`) is the way to co
 
 Next, create an Azure Monitor alert. Open **Monitoring** → **Alerts** → **Create** → **Alert rule**. Use scope `sqlmi-microhack-2026`, signal **Average CPU percentage**, threshold **Greater than 80**, aggregation **Average**, evaluation frequency **1 minute**, and lookback/window **5 minutes**.
 
-![Create alert rule condition](../../Images/c4-step7-SQLMI-Alert-Rule.png)
+![Create alert rule condition](../../Images/c4-step-17-create-action-group.png)
 
 Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator. 
 
 REMOVE!!!!!For Teams notifications, use a **Workflows connector** (Power Automate) instead of the deprecated Office 365 Incoming Webhooks — create a workflow in Teams that posts to a channel when triggered by an HTTP request, then add that workflow URL as a webhook receiver in the action group. Name the alert `sqlmi-high-cpu-80pct-10m` and set severity to 2.
 
-![Alert action group email teams](../../Images/c4-step7-SQLMI-Alert-Action-Group.png)
+![Alert action group email teams](../../Images/c4-step-17-create-alert-rule.png)
 
 ## Step 8 — Validate fixes
 
