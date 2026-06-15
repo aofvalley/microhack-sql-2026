@@ -57,6 +57,12 @@ param tags object = {
 @description('Extra tags applied to policy-sensitive resources (SQL Server, SQL MI). Set SecurityControl=Ignore to satisfy MCAPS governance deny policies when testing in a Microsoft-internal tenant.')
 param resourceTags object = {}
 
+@description('Microsoft Entra ID administrator login (UPN or display name) for every student Azure SQL server. Empty leaves SQL authentication only.')
+param sqlEntraAdminLogin string = ''
+
+@description('Microsoft Entra ID administrator object id (principal/SID) for every student Azure SQL server.')
+param sqlEntraAdminObjectId string = ''
+
 var userIndexes = range(startUserIndex, userCount)
 
 resource userRgs 'Microsoft.Resources/resourceGroups@2023-07-01' = [for i in userIndexes: {
@@ -81,6 +87,8 @@ module userEnv 'modules/userEnvironment.bicep' = [for (i, idx) in userIndexes: {
     setupScriptUri: setupScriptUri
     autoShutdownTime: autoShutdownTime
     resourceTags: resourceTags
+    sqlEntraAdminLogin: sqlEntraAdminLogin
+    sqlEntraAdminObjectId: sqlEntraAdminObjectId
   }
 }]
 
@@ -88,6 +96,8 @@ output users array = [for (i, idx) in userIndexes: {
   index: i
   resourceGroup: userRgs[idx].name
   vmName: userEnv[idx].outputs.vmName
+  vmName2019: userEnv[idx].outputs.vmName2019
+  vmName2025: userEnv[idx].outputs.vmName2025
   bastionName: userEnv[idx].outputs.bastionName
   sqlServerFqdn: userEnv[idx].outputs.sqlServerFqdn
   sqlMiFqdn: userEnv[idx].outputs.sqlMiFqdn

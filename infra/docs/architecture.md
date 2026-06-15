@@ -1,8 +1,9 @@
 # Architecture
 
 This repository provisions isolated Azure environments for the MicroHack SQL 2026 lab. Each
-student receives a dedicated resource group, VNet, identity, SQL Server source VM, Azure SQL
-logical server, and optionally Azure SQL Managed Instance.
+student receives a dedicated resource group, VNet, identity, **two** SQL Server source VMs
+(SQL Server 2019 and SQL Server 2025), an Azure SQL logical server, and optionally an Azure SQL
+Managed Instance.
 
 ## Per-student network diagram
 
@@ -29,14 +30,15 @@ rg-<prefix>-user<NN>
         |  +----------------------+                        |
         |               |                                  |
         |               v                                  |
-        |  +----------------------+                        |
-        |  | snet-sql             |                        |
-        |  | Source VM            |                        |
-        |  | Windows Server 2022  |                        |
-        |  | SQL Server 2019 Dev  |                        |
-        |  +----------------------+                        |
+        |  +-----------------------------------------+     |
+        |  | snet-sql                                |     |
+        |  | Source VM 1: WS 2022 + SQL Server 2019  |     |
+        |  |   (DMS migration source, Challenge 2)   |     |
+        |  | Source VM 2: WS 2025 + SQL Server 2025  |     |
+        |  |   (MI Link migration source, Challenge 3)|    |
+        |  +-----------------------------------------+     |
         |               |                                  |
-        |               | DMS / migration traffic          |
+        |               | DMS / MI Link migration traffic  |
         |               v                                  |
         |  +----------------------+                        |
         |  | snet-mi              |                        |
@@ -45,7 +47,7 @@ rg-<prefix>-user<NN>
         |  +----------------------+                        |
         +--------------------------------------------------+
 
-        Azure SQL logical server: public endpoint, firewall enabled
+        Azure SQL logical server: public endpoint, firewall enabled, SQL + Microsoft Entra ID auth
         Azure Key Vault: per-student, RBAC-authorized, stores all credentials
         Log Analytics workspace: per-student, diagnostics/telemetry for the lab resources
         Entra ID user: Contributor + Key Vault Secrets User + VM Admin Login, scoped to this resource group
@@ -60,8 +62,8 @@ Every student resource group contains a dedicated, RBAC-authorized **Azure Key V
 | --- | --- |
 | `student-username` | The student's Azure (Entra ID) sign-in (`<prefix>user<NN>@…`). |
 | `student-password` | The student's Azure (Entra ID) sign-in password (also handed out for the first login). |
-| `vm-admin-username` | Local administrator username for the source VM. |
-| `vm-admin-password` | Local administrator / SQL `sa` password for the source VM. |
+| `vm-admin-username` | Local administrator username for both source VMs. |
+| `vm-admin-password` | Local administrator / SQL `sa` password for both source VMs. |
 | `sql-admin-login` | Administrator login for the Azure SQL server and Managed Instance. |
 | `sql-admin-password` | Administrator password for the Azure SQL server and Managed Instance. |
 
@@ -79,16 +81,18 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | RBAC assignments | Contributor + Key Vault Secrets User + VM Administrator Login, scoped to the student RG | Manage own RG, read Key Vault secrets, sign in via Bastion. | Challenges 0-5 |
 | Azure Key Vault | One per student, RBAC-authorized, public endpoint | Stores all lab credentials (VM admin + SQL admin). Students read them with their Key Vault Secrets User role. | Challenges 0-5 |
 | Log Analytics workspace | One per student (`<prefix>u<NN>-law`), PerGB2018, 30-day retention | Collects diagnostics/telemetry for the student's lab resources. | Challenges 0-5 |
-| Source VM | `Standard_D4s_v5` default | SQL Server 2019 source environment. | Assessment and migration source |
-| VM image | Windows Server 2022 + SQL Server 2019 Developer, `sql2019-ws2022:sqldev-gen2` | Matches the modernization source workload. | Challenges 1-3 |
-| Custom Script Extension | Restores AdventureWorks2019 and WideWorldImporters; installs SSMS 20, Azure CLI, VS Code | Prepares repeatable student workstation and SQL source. | Challenges 0-5 |
-| Public IP | Public VM networking | Simple lab connectivity model. | Challenges 0-5 |
-| Azure Bastion | One per resource group | Browser-based RDP to the source VM without distributing direct RDP steps. | Challenges 0-5 |
-| Azure SQL logical server | Public endpoint, firewall allowing Azure services and the student | Target host where students create the database used by DMS migration. | Challenge 2 |
+| Source VM 1 (SQL 2019) | `Standard_D4s_v5` default, `<prefix>u<NN>-srcvm19` | SQL Server 2019 source for the DMS migration. | Challenge 2 source |
+| Source VM 1 image | Windows Server 2022 + SQL Server 2019 Developer, `sql2019-ws2022:sqldev-gen2` | Matches the legacy modernization source. | Challenges 1-2 |
+| Source VM 2 (SQL 2025) | `Standard_D4s_v5` default, `<prefix>u<NN>-srcvm25` | SQL Server 2025 source for the Managed Instance Link migration. | Challenge 3 source |
+| Source VM 2 image | Windows Server 2025 + SQL Server 2025 Enterprise Developer, `sql2025-ws2025:entdev-gen2` | Modern source that supports MI Link. | Challenge 3 |
+| Custom Script Extension | On **both** VMs: restores AdventureWorks2019 and WideWorldImporters; installs SSMS 20, Azure CLI, VS Code | Identical, repeatable SQL sources. | Challenges 0-5 |
+| Public IP | Public VM networking (one per VM) | Simple lab connectivity model. | Challenges 0-5 |
+| Azure Bastion | One per resource group | Browser-based RDP to both source VMs without distributing direct RDP steps. | Challenges 0-5 |
+| Azure SQL logical server | Public endpoint, firewall allowing Azure services and the student; SQL + Microsoft Entra ID auth | Target where students create the DMS database. | Challenge 2 |
 | Azure SQL databases | None pre-created | Students create the target database themselves. | Challenge 2 |
 | Azure SQL Managed Instance | GP_Gen5, 4 vCores, public endpoint enabled | Destination for Managed Instance Link migration. | Challenge 3 |
 | VNet | `10.0.0.0/16` per student | Private address space local to the student environment. | Challenges 0-5 |
-| `snet-sql` | VM subnet | Hosts the source VM. | Challenges 1-3 |
+| `snet-sql` | VM subnet | Hosts both source VMs (SQL 2019 and SQL 2025). | Challenges 1-3 |
 | `AzureBastionSubnet` | Bastion subnet | Required subnet for Azure Bastion. | Challenges 0-5 |
 | `snet-mi` | Delegated to `Microsoft.Sql/managedInstances` | Hosts Azure SQL Managed Instance. | Challenge 3 |
 
@@ -99,7 +103,7 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | Network element | Scope | Rules / behavior | Reason |
 | --- | --- | --- | --- |
 | VNet | Per student, `10.0.0.0/16` | No shared VNet between students. | Prevents cross-student network access and simplifies teardown. |
-| `snet-sql` | Source VM subnet | Allows required VM and Bastion traffic. | Student can administer the SQL Server source VM. |
+| `snet-sql` | Source VM subnet | Allows required VM and Bastion traffic. | Students administer both SQL Server source VMs. |
 | `AzureBastionSubnet` | Bastion subnet | NSG allows Azure Bastion-required traffic. | Enables browser-based RDP. |
 | `snet-mi` | SQL MI subnet | Delegated to `Microsoft.Sql/managedInstances`; NSG allows MI-required ports. | Required for Azure SQL Managed Instance deployment and operation. |
 | Azure SQL logical server firewall | Logical server | Public endpoint with firewall rule allowing Azure services and the student. | Keeps Challenge 2 simple and avoids private endpoint setup. |
@@ -162,8 +166,8 @@ facilitators to skip it for dry runs, early setup, or cohorts that do not run Ch
 | Lab challenge | Infrastructure support |
 | --- | --- |
 | Challenge 0: environment access and orientation | Entra ID user, RBAC, resource group, Key Vault (credentials), Bastion, source VM tooling. |
-| Challenge 1: assess SQL Server 2019 source | Source VM with SQL Server 2019 Developer, restored AdventureWorks2019 and WideWorldImporters, SSMS 20, VS Code + MSSQL extension. |
-| Challenge 2: migrate to Azure SQL Database with DMS | Azure SQL logical server with public endpoint and firewall; students create the target database. |
-| Challenge 3: migrate to Azure SQL Managed Instance with MI Link | Azure SQL Managed Instance GP_Gen5 4 vCores in delegated subnet with public endpoint. |
+| Challenge 1: assess SQL Server 2019 source | Source VM 1 with SQL Server 2019 Developer, restored AdventureWorks2019 and WideWorldImporters, SSMS 20, VS Code + MSSQL extension. |
+| Challenge 2: migrate to Azure SQL Database with DMS | SQL Server 2019 source VM; Azure SQL logical server (public endpoint, firewall, SQL + Entra ID auth); students create the target database. |
+| Challenge 3: migrate to Azure SQL Managed Instance with MI Link | Source VM 2 (SQL Server 2025 on Windows Server 2025); Azure SQL Managed Instance GP_Gen5 4 vCores in a delegated subnet. |
 | Challenge 4: validate and modernize | Source and target SQL platforms remain available for comparison, testing, and application/tooling exercises. |
 | Challenge 5: cleanup and review | Per-student RG boundary and `scripts\cleanup.ps1` simplify teardown and post-lab cleanup. |

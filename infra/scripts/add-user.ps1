@@ -64,6 +64,8 @@ param(
 
     [string]$SetupScriptUri,
 
+    [string]$SqlEntraAdmin,
+
     [switch]$CreateUsers,
     [switch]$WhatIf,
     [switch]$SecurityControlIgnore
@@ -133,6 +135,7 @@ $deployArgs = @{
 if (-not [string]::IsNullOrWhiteSpace($InitialPassword)) { $deployArgs['InitialPassword'] = $InitialPassword }
 if (-not [string]::IsNullOrWhiteSpace($TenantId)) { $deployArgs['TenantId'] = $TenantId }
 if (-not [string]::IsNullOrWhiteSpace($SetupScriptUri)) { $deployArgs['SetupScriptUri'] = $SetupScriptUri }
+if (-not [string]::IsNullOrWhiteSpace($SqlEntraAdmin)) { $deployArgs['SqlEntraAdmin'] = $SqlEntraAdmin }
 if ($null -ne $VmAdminPassword) { $deployArgs['VmAdminPassword'] = $VmAdminPassword }
 if ($null -ne $SqlAdminPassword) { $deployArgs['SqlAdminPassword'] = $SqlAdminPassword }
 if ($CreateUsers) { $deployArgs['CreateUsers'] = $true }

@@ -43,8 +43,8 @@ SQL Managed Instance). When all the checks below pass, you are ready for Challen
 
 1. In the top search bar, type **Resource groups**.
 2. Open your group `rg-mhlab-user01`. It must be the **only** group you can access.
-3. Confirm it contains, at minimum: a **VM** (`mhlabu01-srcvm`), an **Azure Bastion**
-   (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a
+3. Confirm it contains, at minimum: **two VMs** (`mhlabu01-srcvm19` and `mhlabu01-srcvm25`),
+   an **Azure Bastion** (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a
    **SQL managed instance** (`mhlabu01-sqlmi-…`), a **Key Vault** (`mhlabu01kv…`), and a
    **Log Analytics workspace** (`mhlabu01-law`).
 
@@ -74,22 +74,34 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 
 ✅ **Success:** you can read your VM and SQL passwords from your Key Vault.
 
-### Step 3 — Connect to the source VM with Bastion
+### Step 3 — Connect to the source VMs with Bastion
 
-1. In your resource group, open the virtual machine `mhlabu01-srcvm`.
+Your environment has **two** source VMs that you will use in different challenges:
+
+- `mhlabu01-srcvm19` — Windows Server 2022 + **SQL Server 2019**, the source for the **DMS**
+  migration to Azure SQL Database (Challenge 2).
+- `mhlabu01-srcvm25` — Windows Server 2025 + **SQL Server 2025**, the source for the **MI Link**
+  migration to Azure SQL Managed Instance (Challenge 3).
+
+Both VMs have the **same** sample databases and tooling. For Challenge 0 you only need to confirm
+you can reach them; start with `mhlabu01-srcvm19`.
+
+1. In your resource group, open the virtual machine `mhlabu01-srcvm19`.
 2. Select **Connect → Bastion**.
 3. Enter the VM credentials:
    - **Username:** `mhadmin` (the VM local administrator)
    - **Password:** the `vm-admin-password` you read from Key Vault in Step 2a.
 4. Select **Connect**. A Windows desktop opens in a new browser tab.
+5. Repeat the same steps for `mhlabu01-srcvm25` to confirm access to the SQL Server 2025 VM.
 
 > Allow pop-ups for this site if your browser blocks the Bastion window.
 
-✅ **Success:** you see the Windows Server 2022 desktop of your source VM.
+✅ **Success:** you reach the Windows desktop of both source VMs.
 
 ### Step 4 — Connect to the source SQL Server with SSMS
 
-1. Inside the VM, open **SQL Server Management Studio (SSMS)** from the Start menu.
+1. Inside either source VM (for Challenge 0, `mhlabu01-srcvm19` is fine), open **SQL Server
+   Management Studio (SSMS)** from the Start menu.
 2. In the connection dialog:
    - **Server name:** `localhost`
    - **Authentication:** Windows Authentication (or SQL Server Authentication with the
@@ -129,7 +141,7 @@ still provisioning).
 - [ ] You signed in to the Azure portal with your `<prefix>user<NN>@<tenant>` account.
 - [ ] You can see **only** your resource group `rg-mhlab-user01`.
 - [ ] You opened your **Key Vault** and read the `vm-admin-password` secret.
-- [ ] You connected to `mhlabu01-srcvm` through Azure Bastion.
+- [ ] You connected to `mhlabu01-srcvm19` and `mhlabu01-srcvm25` through Azure Bastion.
 - [ ] SSMS on the VM shows **AdventureWorks2019** and **WideWorldImporters** online.
 - [ ] You located your Azure SQL server and noted its FQDN.
 - [ ] You located your Azure SQL Managed Instance (or confirmed it is provisioning).

@@ -3,8 +3,9 @@
 **[Home](../Readme.md)** - [Next Challenge](challenge-01.md)
 
 Welcome to the **MicroHack SQL 2026**! In this lab you will **assess** a SQL Server 2019
-instance and **migrate** it to Azure — first to **Azure SQL Database** with Azure Database
-Migration Service (DMS), and then to **Azure SQL Managed Instance** with Managed Instance Link.
+instance and **migrate** to Azure — first from a **SQL Server 2019** source to **Azure SQL
+Database** with Azure Database Migration Service (DMS), and then from a **SQL Server 2025** source
+to **Azure SQL Managed Instance** with Managed Instance Link.
 
 Challenge 0 makes sure that, before you touch any migration, you can reach **every** component
 of your personal lab environment and you understand how it fits together. Work through the steps
@@ -13,7 +14,7 @@ in order; each one ends with a success check.
 ## Goal
 
 Understand the lab architecture, sign in with your assigned identity, reach your isolated
-resource group, connect to the source SQL Server through Azure Bastion, and locate both
+resource group, connect to the source SQL Servers through Azure Bastion, and locate both
 migration targets (Azure SQL Database and Azure SQL Managed Instance). When every check below
 passes, you are ready for Challenge 1.
 
@@ -29,14 +30,15 @@ Each attendee gets a fully **isolated, personal** environment: one resource grou
 | --- | --- | --- |
 | **Entra ID user** | Your identity (`<prefix>user<NN>@<tenant>`, e.g. `mhlabuser01@…`) | Sign in to the Azure portal and the VM. |
 | **Resource group** | `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`) | Holds all your resources; only you can access it. |
-| **Source VM** | Windows Server 2022 + SQL Server 2019 Developer (`mhlabu01-srcvm`) | The **source** to assess and migrate. Ships with SSMS, Azure CLI and VS Code. |
-| **Azure Bastion** | Browser-based RDP (`mhlabu01-bastion`) | Connect to the source VM securely, no public RDP client. |
+| **Source VM 1 (SQL 2019)** | Windows Server 2022 + SQL Server 2019 Developer (`mhlabu01-srcvm19`) | The **source** for the DMS migration (Challenge 2). Ships with SSMS, Azure CLI and VS Code. |
+| **Source VM 2 (SQL 2025)** | Windows Server 2025 + SQL Server 2025 Enterprise Dev (`mhlabu01-srcvm25`) | The **source** for the MI Link migration (Challenge 3). Same DBs and tools as VM 1. |
+| **Azure Bastion** | Browser-based RDP (`mhlabu01-bastion`) | Connect to both source VMs securely, no public RDP client. |
 | **Key Vault** | Per-user secret store (`mhlabu01kv…`) | Look up the VM and SQL passwords you need. |
 | **Azure SQL server** | PaaS logical server, public endpoint (`mhlabu01-sqlsrv-…`) | **Target** of the DMS migration (Challenge 2). You create the target database. |
 | **Azure SQL Managed Instance** | Managed PaaS instance (`mhlabu01-sqlmi-…`) | **Target** of the MI Link migration (Challenge 3). |
 
 > Networking is **public by design** to keep the lab simple — there are no private endpoints or
-> peering to configure. The source VM already has **AdventureWorks2019** and
+> peering to configure. Both source VMs already have **AdventureWorks2019** and
 > **WideWorldImporters** restored and online.
 
 ## Access flow
@@ -70,9 +72,9 @@ resource group.
 
 1. In the top search bar, type **Resource groups**.
 2. Open your group `rg-mhlab-user01`. It must be the **only** group you can access.
-3. Confirm it contains at least: a **VM** (`mhlabu01-srcvm`), an **Azure Bastion**
-   (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a **SQL managed
-   instance** (`mhlabu01-sqlmi-…`), and a **Key Vault** (`mhlabu01kv…`).
+3. Confirm it contains at least: **two VMs** (`mhlabu01-srcvm19` and `mhlabu01-srcvm25`), an
+   **Azure Bastion** (`mhlabu01-bastion`), an **Azure SQL server** (`mhlabu01-sqlsrv-…`), a
+   **SQL managed instance** (`mhlabu01-sqlmi-…`), and a **Key Vault** (`mhlabu01kv…`).
 
 ✅ **Success:** you can see your resource group and its resources.
 
@@ -97,20 +99,26 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 
 ✅ **Success:** you can read your VM and SQL passwords from your Key Vault.
 
-### Step 3 — Connect to the source VM with Bastion
+### Step 3 — Connect to the source VMs with Bastion
 
-1. In your resource group, open the virtual machine `mhlabu01-srcvm`.
+Your environment has **two** source VMs: `mhlabu01-srcvm19` (SQL Server 2019, the DMS source for
+Challenge 2) and `mhlabu01-srcvm25` (SQL Server 2025, the MI Link source for Challenge 3). Both have
+the same databases and tooling.
+
+1. In your resource group, open the virtual machine `mhlabu01-srcvm19`.
 2. Select **Connect → Bastion**.
 3. Enter the VM credentials:
    - **Username:** `mhadmin` (the VM local administrator)
    - **Password:** the `vm-admin-password` you read from Key Vault in Step 2a.
 4. Select **Connect**. A Windows desktop opens in a new browser tab (allow pop-ups).
+5. Repeat for `mhlabu01-srcvm25` to confirm access to the SQL Server 2025 VM.
 
-✅ **Success:** you see the Windows Server 2022 desktop of your source VM.
+✅ **Success:** you reach the Windows desktop of both source VMs.
 
 ### Step 4 — Connect to the source SQL Server with SSMS
 
-1. Inside the VM, open **SQL Server Management Studio (SSMS)** from the Start menu.
+1. Inside either source VM (for Challenge 0, `mhlabu01-srcvm19` is fine), open **SQL Server
+   Management Studio (SSMS)** from the Start menu.
 2. In the connection dialog:
    - **Server name:** `localhost`
    - **Authentication:** Windows Authentication, **or** SQL Server Authentication with the
@@ -146,7 +154,7 @@ az keyvault secret show --vault-name mhlabu01kv<hash> --name vm-admin-password -
 - [ ] You signed in to the Azure portal with your `<prefix>user<NN>@<tenant>` account and changed the temporary password + set up MFA.
 - [ ] You can see **only** your resource group `rg-mhlab-user01`.
 - [ ] You opened your **Key Vault** and read the `vm-admin-password` secret.
-- [ ] You connected to `mhlabu01-srcvm` through Azure Bastion.
+- [ ] You connected to `mhlabu01-srcvm19` and `mhlabu01-srcvm25` through Azure Bastion.
 - [ ] SSMS on the VM shows **AdventureWorks2019** and **WideWorldImporters** online.
 - [ ] You located your Azure SQL server and noted its FQDN.
 - [ ] You located your Azure SQL Managed Instance (or confirmed it is provisioning).

@@ -1,11 +1,30 @@
-// sourceVm.bicep — Per-student migration SOURCE: Windows Server 2022 + SQL Server 2019 Developer.
-// Sample databases + tooling are installed by a Custom Script Extension.
+// sourceVm.bicep — Per-student migration SOURCE SQL Server VM.
+// The module is deployed twice per student: a Windows Server 2022 + SQL Server 2019
+// Developer VM (DMS source for Challenge 2) and a Windows Server 2025 + SQL Server 2025
+// VM (Managed Instance Link source for Challenge 3). Both restore the same sample
+// databases and tooling via a shared Custom Script Extension.
 
 @description('Azure region.')
 param location string
 
 @description('Short resource name prefix for this student.')
 param resourcePrefix string
+
+@description('Short suffix that makes this VM unique within the student RG, e.g. srcvm19 or srcvm25.')
+@maxLength(12)
+param nameSuffix string = 'srcvm19'
+
+@description('Marketplace image publisher.')
+param imagePublisher string = 'MicrosoftSQLServer'
+
+@description('Marketplace image offer, e.g. sql2019-ws2022 or sql2025-ws2025.')
+param imageOffer string = 'sql2019-ws2022'
+
+@description('Marketplace image SKU, e.g. sqldev-gen2 (SQL 2019) or entdev-gen2 (SQL 2025).')
+param imageSku string = 'sqldev-gen2'
+
+@description('Friendly SQL version label used in tags, e.g. SQL Server 2019.')
+param sqlVersionLabel string = 'SQL Server 2019'
 
 @description('Resource id of the subnet for the VM.')
 param sqlSubnetId string
@@ -29,10 +48,11 @@ param setupScriptUri string = ''
 @description('Daily auto-shutdown time HHmm in UTC. Empty disables auto-shutdown.')
 param autoShutdownTime string = '1900'
 
-var vmName = '${resourcePrefix}-srcvm'
-var nicName = '${resourcePrefix}-srcvm-nic'
-var pipName = '${resourcePrefix}-srcvm-pip'
-var osDiskName = '${resourcePrefix}-srcvm-osdisk'
+var vmName = '${resourcePrefix}-${nameSuffix}'
+var nicName = '${resourcePrefix}-${nameSuffix}-nic'
+var pipName = '${resourcePrefix}-${nameSuffix}-pip'
+var osDiskName = '${resourcePrefix}-${nameSuffix}-osdisk'
+var computerName = take(replace('${resourcePrefix}${nameSuffix}', '-', ''), 15)
 var scriptFileName = empty(setupScriptUri) ? '' : first(split(last(split(setupScriptUri, '/')), '?'))
 
 // Regions where Microsoft.DevTestLab/schedules (auto-shutdown) is available.
@@ -82,12 +102,15 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: vmName
   location: location
+  tags: {
+    sqlVersion: sqlVersionLabel
+  }
   properties: {
     hardwareProfile: {
       vmSize: vmSize
     }
     osProfile: {
-      computerName: take(replace('${resourcePrefix}srcvm', '-', ''), 15)
+      computerName: computerName
       adminUsername: adminUsername
       adminPassword: adminPassword
       windowsConfiguration: {
@@ -97,9 +120,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
     }
     storageProfile: {
       imageReference: {
-        publisher: 'MicrosoftSQLServer'
-        offer: 'sql2019-ws2022'
-        sku: 'sqldev-gen2'
+        publisher: imagePublisher
+        offer: imageOffer
+        sku: imageSku
         version: 'latest'
       }
       osDisk: {

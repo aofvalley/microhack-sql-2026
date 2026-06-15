@@ -16,9 +16,10 @@ One resource group `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`) containing:
 | Resource | Module | Purpose |
 | --- | --- | --- |
 | Entra ID user `<prefix>user<NN>@<tenant>` | `scripts/create-users.ps1` | Attendee identity (temporary password, MFA + change at first sign-in). |
-| Virtual network + NSGs + Bastion | `bicep/modules/network.bicep`, `bastion.bicep` | Secure access to the source VM (public networking, no peering). |
-| Source VM (Windows + SQL Server 2019) | `bicep/modules/sourceVm.bicep` | Migration **source**; SSMS, VS Code, AdventureWorks2019 + WideWorldImporters restored. |
-| Azure SQL logical server | `bicep/modules/sqlServer.bicep` | DMS migration **target** (Challenge 2). |
+| Virtual network + NSGs + Bastion | `bicep/modules/network.bicep`, `bastion.bicep` | Secure access to both source VMs (public networking, no peering). |
+| Source VM 1 (Windows Server 2022 + SQL Server 2019) | `bicep/modules/sourceVm.bicep` | DMS migration **source** (Challenge 2); SSMS, VS Code, AdventureWorks2019 + WideWorldImporters restored. |
+| Source VM 2 (Windows Server 2025 + SQL Server 2025) | `bicep/modules/sourceVm.bicep` | MI Link migration **source** (Challenge 3); same databases and tooling as VM 1. |
+| Azure SQL logical server | `bicep/modules/sqlServer.bicep` | DMS migration **target** (Challenge 2); SQL + Microsoft Entra ID authentication. |
 | Azure SQL Managed Instance | `bicep/modules/sqlMi.bicep` | MI Link migration **target** (Challenge 3). |
 | Key Vault | `bicep/modules/keyVault.bicep` | Stores the attendee's VM / SQL credentials. |
 | Log Analytics workspace | `bicep/modules/logAnalytics.bicep` | Per-user `<prefix>u<NN>-law` workspace for diagnostics/telemetry of the lab resources. |
@@ -43,6 +44,8 @@ infra/
     add-user.ps1            Provision one extra environment on demand
     create-users.ps1        Create/refresh Entra ID users + RBAC
     cleanup.ps1             Tear down resource groups, users and staging
+    start-labs.ps1          Start (power on) all student VMs without destroying anything
+    stop-labs.ps1           Stop (deallocate) all student VMs without destroying anything
     parameters.example.json Example parameters (placeholders only)
     README.md               Script reference
   web/                      ← deployment web UI (Option 2)
@@ -154,6 +157,24 @@ Pass passwords on the command line or via a local `parameters.json` you **do not
 
 Full reference: `scripts/README.md` and `docs/deployment-guide.md`.
 
+### Start / stop labs without destroying them
+
+If you deploy the environments ahead of time (for example the evening before) and want to power
+everything down overnight to save cost, use the non-destructive cohort scripts. They only
+start / `deallocate` the VMs — every resource group, disk, SQL server and Managed Instance is kept.
+
+```powershell
+# Stop (deallocate) all student VMs at the end of the day
+./scripts/stop-labs.ps1 -SubscriptionId <your-subscription-id> -Prefix mh
+
+# Start (power on) all student VMs the next morning before attendees arrive
+./scripts/start-labs.ps1 -SubscriptionId <your-subscription-id> -Prefix mh
+```
+
+> ℹ️ The source VMs also have an **auto-shutdown at `19:00`** (see cost model). When you leave the
+> labs running overnight, run `start-labs.ps1` each morning so the VMs are up before attendees sign
+> in. Managed Instances cannot be deallocated; they keep billing while they exist.
+
 ---
 
 ## Option 2 — Deploy with the web app
@@ -196,6 +217,7 @@ Key Vault (they have the **Key Vault Secrets User** role on their resource group
 
 ## Cost
 
-Each environment is dominated by the **SQL Managed Instance** and the **source VM**. See
-`docs/cost-model.md` for an estimate and cost-control tips (auto-shutdown is enabled on the VM at
-`19:00` by default). Always run `cleanup.ps1` when the lab finishes.
+Each environment is dominated by the **SQL Managed Instance** and the **two source VMs**. See
+`docs/cost-model.md` for an estimate and cost-control tips (auto-shutdown is enabled on the VMs at
+`19:00` by default; use `stop-labs.ps1` / `start-labs.ps1` to power VMs off and on between days).
+Always run `cleanup.ps1` when the lab finishes.

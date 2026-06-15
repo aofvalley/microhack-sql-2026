@@ -12,9 +12,9 @@ Illustrative estimates for West Europe-style pay-as-you-go planning:
 
 | Resource | Quantity per student | Example hourly estimate | Notes |
 | --- | ---: | ---: | --- |
-| Source VM compute, `Standard_D4s_v5` | 1 | `$0.20-$0.30/hr` | VM can be auto-shutdown at `1900` UTC. SQL Server Developer edition does not add production SQL licensing cost. |
-| VM OS/data disks | 1 set | `$0.02-$0.08/hr` | Depends on disk type and size. Continues while VM is stopped unless disks are deleted. |
-| Public IPs | 1+ | `$0.005-$0.02/hr` | Depends on SKU and allocation. |
+| Source VM compute, `Standard_D4s_v5` | 2 (SQL 2019 + SQL 2025) | `$0.40-$0.60/hr` | Two VMs per student. Both auto-shutdown at `1900` UTC; use `stop-labs.ps1` / `start-labs.ps1` overnight. |
+| VM OS/data disks | 2 sets | `$0.04-$0.16/hr` | Depends on disk type and size. Continues while VMs are stopped unless disks are deleted. |
+| Public IPs | 2+ | `$0.01-$0.04/hr` | One per VM, plus Bastion. Depends on SKU and allocation. |
 | Azure Bastion | 1 | `$0.15-$0.25/hr` | Per-student Bastion improves isolation but adds steady cost. |
 | Azure SQL logical server | 1 | `$0/hr` | Logical server itself has no compute charge; databases created by students may add cost. |
 | Azure SQL Database created by student | 0 initially | varies | No databases are pre-created by this infrastructure. |
@@ -24,8 +24,8 @@ Illustrative estimates for West Europe-style pay-as-you-go planning:
 
 Planning shorthand:
 
-- Without SQL MI: about **`$0.40-$0.75 per student-hour`**.
-- With SQL MI: about **`$1.20-$2.00 per student-hour`**.
+- Without SQL MI: about **`$0.60-$1.10 per student-hour`** (two source VMs).
+- With SQL MI: about **`$1.40-$2.40 per student-hour`**.
 
 ## Sample totals
 
@@ -52,14 +52,16 @@ That does **not** include VMs, Bastion, storage, public IPs, student-created Azu
 | Component | Typical planning note |
 | --- | --- |
 | Resource groups, VNets, public IPs, SQL logical servers | Usually minutes. |
-| Source VM and Custom Script Extension | VM deployment plus setup time; database restore and tooling install can take additional time. |
+| Source VMs and Custom Script Extension | Two VMs per student (SQL 2019 + SQL 2025); VM deployment plus setup time. Database restore and tooling install can take additional time. |
 | Azure Bastion | Usually minutes, but deploys per student. |
 | Azure SQL Managed Instance | Plan for **3-6 hours**. This can dominate total deployment time. |
 
 ## Cost-control recommendations
 
 1. **Use `deploySqlMi=false` until needed.** Deploy SQL MI only for cohorts that will run Challenge 3.
-2. **Keep `autoShutdownTime=1900` UTC.** This reduces VM compute spend after lab hours.
+2. **Keep `autoShutdownTime=1900` UTC.** This reduces VM compute spend after lab hours. To leave
+   labs deployed across multiple days, run `stop-labs.ps1` overnight and `start-labs.ps1` each
+   morning to deallocate / restart both source VMs without destroying anything.
 3. **Tear down promptly.** Delete student resource groups after the lab, especially when SQL MI was deployed.
 4. **Deploy only the required capacity.** The default is 30 students, but use a smaller `userCount` for pilot runs.
 5. **Use `startUserIndex` for batches.** Deploy a small validation batch first, then add more students if needed.
