@@ -232,7 +232,7 @@ function Invoke-SqlCmdCli {
 
     $sqlcmd = Get-SqlCmdPath
     Invoke-SqlAction -Action {
-        $arguments = @('-S', $serverName, '-E', '-b', '-t', [string]$QueryTimeout, '-Q', $Query)
+        $arguments = @('-S', $serverName, '-E', '-C', '-b', '-t', [string]$QueryTimeout, '-Q', $Query)
         $output = & $sqlcmd @arguments 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "sqlcmd failed with exit code $LASTEXITCODE. $($output -join [Environment]::NewLine)"
@@ -332,7 +332,7 @@ function Grant-SysadminToSystemIfNeeded {
     $deadline = (Get-Date).AddMinutes(3)
     $ready = $false
     while (-not $ready -and (Get-Date) -lt $deadline) {
-        & $sqlcmd -S $serverName -E -b -Q 'SELECT 1;' *> $null
+        & $sqlcmd -S $serverName -E -C -b -Q 'SELECT 1;' *> $null
         if ($LASTEXITCODE -eq 0) { $ready = $true } else { Start-Sleep -Seconds 3 }
     }
     if (-not $ready) {
@@ -340,7 +340,7 @@ function Grant-SysadminToSystemIfNeeded {
     }
 
     $grantQuery = "IF SUSER_ID('NT AUTHORITY\SYSTEM') IS NULL CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS; ALTER SERVER ROLE sysadmin ADD MEMBER [NT AUTHORITY\SYSTEM];"
-    $grantOutput = & $sqlcmd -S $serverName -E -b -Q $grantQuery 2>&1 | Out-String
+    $grantOutput = & $sqlcmd -S $serverName -E -C -b -Q $grantQuery 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to grant sysadmin in single-user mode (exit $LASTEXITCODE): $grantOutput"
     }
