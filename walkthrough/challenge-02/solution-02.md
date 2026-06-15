@@ -29,23 +29,24 @@
 | `sqlmigration` | Source SQL login used by DMS (created in this guide) | `sqlmigration` |
 | `dms_migrator` | Dedicated **target** SQL login created in this guide (optional) | `dms_migrator` |
 
-## What changed since the original
+## Migration tooling for this challenge
 
-The original SQL Modernization MicroHack migrated databases through the Azure Data Studio (ADS)
-SQL Migration extension. ADS was retired on **28-Feb-2026**. This 2026 edition rebuilds the
-migration path on top of **Azure Database Migration Service (DMS)**, driven end-to-end from the
-**Azure portal**, with the **Migrate Missing Schema** option of DMS deploying schema and data
-in a single migration project — the supported Microsoft-native flow for SQL Server → Azure
-SQL Database.
+This walkthrough migrates the database with **Azure Database Migration Service (DMS)**, driven
+end-to-end from the **Azure portal**. DMS's **Migrate Missing Schema** option deploys schema and
+data in a single migration project — the supported Microsoft-native flow for SQL Server → Azure
+SQL Database. Key facts for this lab:
 
-| Original lab choice | 2026 replacement | Why it changed |
-|---|---|---|
-| ADS + Azure SQL Migration extension | **Azure Database Migration Service** (driven from the Azure portal) | ADS is retired; DMS is the underlying service and remains supported. |
-| Implicit runtime managed by ADS | A **self-hosted integration runtime (SHIR)** registered against DMS | For the **SQL Server → Azure SQL Database** scenario the Azure portal **disables the wizard until a SHIR is connected** (verified in the portal — see Step 3.2), even when the source is an Azure VM. The SHIR is installed on the source VM. |
-| SQL Server 2019/2022 source | **SQL Server 2019** source (the Challenge 1 IaaS VM) | Same source instance assessed in Challenge 1 — one IaaS VM, no fleet. |
-| Two sample databases (`AdventureWorks2019`, `WideWorldImporters`) | **One database** (**AdventureWorks2019**) migrated end-to-end | This lab focuses on the DMS flow itself, so we migrate a **single** database to keep the wizard clear. `WideWorldImporters` is reserved for the Challenge 3 MI Link path. |
-| Target Azure SQL Managed Instance | **Azure SQL Database** (a single database on one logical server) | Matches the logical server already deployed for this lab. |
-| Schema and data migrated in one wizard step | Schema and data migrated in one wizard step via the **Migrate Missing Schema** checkbox in DMS | Confirmed by the official DMS tutorial. SqlPackage / DACPAC remains a supported alternative (see Annex D). |
+- **Connectivity:** the **SQL Server → Azure SQL Database** scenario requires a **self-hosted
+  integration runtime (SHIR)**; the Azure portal **disables the migration wizard until a SHIR is
+  connected** (verified in the portal — see Step 3.2), even when the source is an Azure VM. The SHIR
+  is installed on the source VM.
+- **Source:** **SQL Server 2019** on the Challenge 1 IaaS VM (`mhu<NN>-srcvm19`).
+- **Database:** a **single** database — **AdventureWorks2019** — is migrated end-to-end to keep the
+  wizard clear. `WideWorldImporters` is reserved for the Challenge 3 MI Link path.
+- **Target:** **Azure SQL Database** (a single database on the logical server already deployed for
+  this lab).
+- **Schema + data:** both move in one wizard step via the **Migrate Missing Schema** checkbox.
+  SqlPackage / DACPAC remains a supported alternative (see Annex D).
 
 > **Online migration is not available for Azure SQL Database targets.** Application downtime
 > starts when the DMS migration starts. Plan an offline cut-over window.

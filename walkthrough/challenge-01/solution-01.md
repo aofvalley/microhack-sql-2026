@@ -2,15 +2,11 @@
 
 [Previous Solution](../challenge-00/solution-00.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-02/solution-02.md)
 
-## What changed since the original
-
-The original SQL Modernization MicroHack used **Azure Data Studio (ADS)** with the **Azure SQL
-Migration extension** to assess and size in one flow. ADS was retired on **28-Feb-2026** and the
-extension is deprecated, so the assessment tooling has moved into SSMS and Azure Migrate.
+## Assessment tooling for this challenge
 
 Per the official
 [**SQL Server → Azure SQL Database migration guidance**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/overview?view=azuresql#migration-tools),
-Microsoft recommends **two** tools, and they do **different** jobs:
+Microsoft recommends **two** tools that do **different** jobs:
 
 - **Azure Database Migration Service (DMS)** — the fully managed service that performs the **migration**
   with minimal downtime (Challenge 2).
@@ -20,20 +16,13 @@ Microsoft recommends **two** tools, and they do **different** jobs:
 **Azure Migrate is the assessment tool for this challenge.** It is the only tool that produces a
 **complete** assessment: it runs the rule-mapped **readiness** check *and* returns the **SKU
 recommendation + monthly cost** sizing you carry into Challenge 2. It discovers the source through a
-lightweight **appliance** deployed on the source network. The SSMS migration component is kept as a
-**quick readiness-only alternative** when you don't need the sizing. DMS then does the migration in
-Challenge 2.
-
-| Original lab choice | 2026 replacement | Why |
-|---|---|---|
-| Azure Data Studio + SQL Migration extension | **Azure Migrate** (primary assessment) **+ SSMS 21/22 migration component** (quick readiness-only alternative) | ADS retired (28-Feb-2026). Azure Migrate gives the rule-mapped readiness **and** the SKU + monthly cost sizing in one assessment; the SSMS component is a faster readiness-only check against a single instance. |
-| Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
-| Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Managed Instance, no fleet. |
+lightweight **appliance** deployed on the source network. **SSMS 21/22** ships a migration component
+that serves as a **quick readiness-only alternative** when you don't need the sizing. DMS then does
+the migration in Challenge 2.
 
 > **Scope of this walkthrough.** Challenge 1 (assessment) and Challenge 2 (DMS migration) run
 > against **one** SQL Server 2019 IaaS VM and **one** empty Azure SQL Database target. The assessment
-> runs in **Azure Migrate** with a lightweight appliance and a **short** discovery window — you do
-> **not** need the multi-day performance collection used in real engagements.
+> runs in **Azure Migrate** with a lightweight appliance and a **short** discovery window.
 
 ## Lab architecture for this challenge
 
