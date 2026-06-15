@@ -596,7 +596,7 @@ WHERE q.object_id = OBJECT_ID('dbo.usp_GetSalesOrdersByCustomer')
 ORDER BY rsi.start_time, p.plan_id;
 ```
 
-Theprevous query returns both queries and the execution plans associated, as well as the times it the query took
+The previous query returns both queries and the execution plans associated, as well as the times it the query took
 
 ![SSMS Query Store highest consumption](../../Images/c4-step-13-query-store-queries-highest-consumption.png)
 
