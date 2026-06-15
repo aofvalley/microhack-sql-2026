@@ -159,10 +159,10 @@ Open the XML execution plan for the top row. Look for scans, high estimated rows
 
 ### Snapshot server-wide wait stats
 
-This quick query shows the top wait types across the entire instance, which you can compare with the per-query wait stats in Step 5 (KQL Query 5) and Step 6 (Query Store):
+This quick query shows the top wait types across the entire instance:
 
 ```sql
-SELECT TOP (10)
+SELECT TOP (20)
     wait_type,
     wait_time_ms,
     signal_wait_time_ms,
@@ -175,6 +175,33 @@ WHERE wait_type NOT LIKE '%SLEEP%'
 ORDER BY wait_time_ms DESC;
 ```
 ![Wait times](../../Images/c4-step-10-wait-times.png)
+
+**Understanding the screenshot results:**
+
+The screenshot shows SQL MI's accumulated wait statistics since the last restart or stats reset. Most of these are **benign system background tasks**, not user query bottlenecks:
+
+- **SOS_WORK_DISPATCHER** (140 seconds) — Internal task scheduler for system workers. High accumulated time is normal on long-running instances; this is background noise, not a performance issue.
+  
+- **XE_DISPATCHER_WAIT** / **PREEMPTIVE_XE_DISPATCHER** / **XE_TIMER_EVENT** / **XE_LIVE_TARGET_TVF** — Extended Events (XE) infrastructure waits. These fire constantly for system health sessions and diagnostics. Safe to ignore unless you're running dozens of custom XE sessions.
+  
+- **BROKER_TASK_STOP** — Service Broker internal cleanup. Expected on all SQL MI instances even if you're not using Service Broker features.
+  
+- **DIRTY_PAGE_POLL** — Background checkpoint process checking for dirty pages to flush to disk. Part of normal database engine operation.
+  
+- **REQUEST_FOR_DEADLOCK_SEARCH** — Deadlock monitor waking up every 5 seconds to scan for deadlocks. Notice `signal_wait_time_ms` equals `wait_time_ms` (3554417), meaning it's just sleeping and waking on schedule — no actual deadlocks detected.
+  
+- **HADR_FILESTREAM_IOMGR_IOCOMPLETION** — Always-On availability group infrastructure wait (SQL MI uses AG under the hood). Background process, not a user query bottleneck.
+  
+- **PVS_PREALLOCATE** — Persistent Version Store (used for snapshot isolation and accelerated database recovery). Low signal wait time (0 ms) means it's idle most of the time.
+
+- **SOS_SCHEDULER_YIELD** or **CXPACKET** → CPU pressure from queries
+
+- **PAGEIOLATCH_SH** / **PAGEIOLATCH_EX** → Data page reads/writes
+
+- **WRITELOG** → Transaction log writes
+
+- **`**LCK_M_* ** → Lock waits from blocking
+
 
 For active requests, use this companion query:
 
