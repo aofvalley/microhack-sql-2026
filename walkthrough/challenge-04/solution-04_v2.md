@@ -200,10 +200,11 @@ The screenshot shows SQL MI's accumulated wait statistics since the last restart
 
 - **WRITELOG** → Transaction log writes
 
-- **`**LCK_M_* ** → Lock waits from blocking
+- **LCK_M_** → Lock waits from blocking
 
 
-For active requests, use this companion query:
+For active requests, use this companion query. 
+Execute again the initial synthetic load and then run the following query in a new window to see how the active queries are being hapenning and the type of waiting they have.
 
 ```sql
 SELECT
