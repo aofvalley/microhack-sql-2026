@@ -2,15 +2,11 @@
 
 [Previous Solution](../challenge-00/solution-00.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-02/solution-02.md)
 
-## What changed since the original
-
-The original SQL Modernization MicroHack used **Azure Data Studio (ADS)** with the **Azure SQL
-Migration extension** to assess and size in one flow. ADS was retired on **28-Feb-2026** and the
-extension is deprecated, so the assessment tooling has moved into SSMS and Azure Migrate.
+## Assessment tooling for this challenge
 
 Per the official
 [**SQL Server → Azure SQL Database migration guidance**](https://learn.microsoft.com/en-us/data-migration/sql-server/database/overview?view=azuresql#migration-tools),
-Microsoft recommends **two** tools, and they do **different** jobs:
+Microsoft recommends **two** tools that do **different** jobs:
 
 - **Azure Database Migration Service (DMS)** — the fully managed service that performs the **migration**
   with minimal downtime (Challenge 2).
@@ -20,50 +16,42 @@ Microsoft recommends **two** tools, and they do **different** jobs:
 **Azure Migrate is the assessment tool for this challenge.** It is the only tool that produces a
 **complete** assessment: it runs the rule-mapped **readiness** check *and* returns the **SKU
 recommendation + monthly cost** sizing you carry into Challenge 2. It discovers the source through a
-lightweight **appliance** deployed on the source network. The SSMS migration component is kept as a
-**quick readiness-only alternative** when you don't need the sizing. DMS then does the migration in
-Challenge 2.
-
-| Original lab choice | 2026 replacement | Why |
-|---|---|---|
-| Azure Data Studio + SQL Migration extension | **Azure Migrate** (primary assessment) **+ SSMS 21/22 migration component** (quick readiness-only alternative) | ADS retired (28-Feb-2026). Azure Migrate gives the rule-mapped readiness **and** the SKU + monthly cost sizing in one assessment; the SSMS component is a faster readiness-only check against a single instance. |
-| Assessment merged with migration in one wizard | Assessment is its **own** challenge | Splitting assessment from migration mirrors real customer engagements. |
-| Multi-instance fleet (SQL 2012 + SQL 2019/2022) | **Single SQL Server 2019 source** | This walkthrough runs the real lean lab: one IaaS VM → one Azure SQL Database. No Managed Instance, no fleet. |
+lightweight **appliance** deployed on the source network. **SSMS 21/22** ships a migration component
+that serves as a **quick readiness-only alternative** when you don't need the sizing. DMS then does
+the migration in Challenge 2.
 
 > **Scope of this walkthrough.** Challenge 1 (assessment) and Challenge 2 (DMS migration) run
 > against **one** SQL Server 2019 IaaS VM and **one** empty Azure SQL Database target. The assessment
-> runs in **Azure Migrate** with a lightweight appliance and a **short** discovery window — you do
-> **not** need the multi-day performance collection used in real engagements.
+> runs in **Azure Migrate** with a lightweight appliance and a **short** discovery window.
 
 ## Lab architecture for this challenge
 
-Everything lives in one resource group, `rg-microhack-sql-2026`. The source SQL Server runs on an
+Everything lives in one resource group, `rg-mh-user01`. The source SQL Server runs on an
 IaaS VM; the empty Azure SQL logical server is the migration target you will fill in Challenge 2.
 
-![Resource group rg-microhack-sql-2026 — all lab resources](../../Images/c1-step-01-resource-group.png)
+![Resource group rg-mh-user01 — all lab resources](../../Images/c1-step-01-resource-group.png)
 
 | Component | Name | Notes |
 |---|---|---|
-| Resource group | `rg-microhack-sql-2026` | West Europe |
-| Source VM | `sqlvm-mh2026` | SQL Server 2019 Developer on Windows Server 2022, `Standard_D4s_v5` |
-| Source NSG | `nsg-mh2026` | RDP 3389 from your client IP only; 1433 intra-VNet |
-| VNet / subnet | `vnet-mh2026` / `snet-sql` | `10.0.0.0/16` / `10.0.1.0/24` |
-| Bastion | `bastion-mh2026` | Secure browser RDP to the VM (no public RDP needed) |
-| **Migration target** | `sqlsrvmh2026tin4vcwzqrg3k` | Azure SQL logical server, **France Central**, **Entra-only auth** (empty until Challenge 2) |
+| Resource group | `rg-mh-user01` | Sweden Central |
+| Source VM | `mhu01-srcvm19` | SQL Server 2019 Developer on Windows Server 2022, `Standard_D4as_v5` |
+| Source NSG | `mhu01-sql-nsg` | RDP 3389 from your client IP only; 1433 intra-VNet |
+| VNet / subnet | `mhu01-vnet` / `snet-sql` | `10.0.0.0/16` / `10.0.1.0/24` |
+| Bastion | `mhu01-bastion` | Secure browser RDP to the VM (no public RDP needed) |
+| Key vault | `mhu01kv<suffix>` | Stores the **VM username and password** used to sign in over Bastion |
+| **Migration target** | `mhu01-sqlsrv-<suffix>` | Azure SQL logical server, **Sweden Central**, **SQL authentication** (empty until Challenge 2) |
 
 ### The source instance
 
-`sqlvm-mh2026` runs SQL Server 2019 with a set of restored sample databases used for both
+`mhu01-srcvm19` runs SQL Server 2019 with the restored sample databases used for both
 challenges:
 
-![sqlvm-mh2026 — virtual machine overview](../../Images/c1-step-02-source-vm.png)
+![mhu01-srcvm19 — virtual machine overview](../../Images/c1-step-02-source-vm.png)
 
 | Database | Based on | Compat level | Why it's interesting for assessment |
 |---|---|---|---|
-| `TEAM99_LocalMasterDataDB` | AdventureWorks2019 (OLTP) | 120 (SQL 2014) | Classic OLTP schema; clean baseline. |
-| `TEAM99_SharedMasterDatabDB` | WideWorldImporters (OLTP) | 120 (SQL 2014) | Uses **In-Memory OLTP (memory-optimized tables)** — a real tier-impacting finding. |
-| `TEAM99_TenantDataDB` | AdventureWorksDW2019 (data warehouse) | 120 (SQL 2014) | Star schema + columnstore. |
-| `TEAM01_AdventureWorks2019` | AdventureWorks2019 (OLTP) | 110 (SQL 2008 R2) | Intentionally low compat level to surface a compatibility advisory. |
+| `AdventureWorks2019` | AdventureWorks2019 (OLTP) | 110 (SQL 2008 R2) | Classic OLTP schema; intentionally low compat level to surface a compatibility advisory. |
+| `WideWorldImporters` | WideWorldImporters (OLTP) | 120 (SQL 2014) | Uses **In-Memory OLTP (memory-optimized tables)** — a real tier-impacting finding. |
 
 > The databases sit at **compat 110/120**, below the current Azure SQL Database default. Both are
 > *supported* on Azure SQL Database, so this is an **advisory** (raise the compat level post-migration),
@@ -72,8 +60,8 @@ challenges:
 ## Prerequisites
 
 - Challenge 0 complete: the lab resource group is deployed and you can reach the VM.
-- Azure subscription with read access to the resource group and permission to use Bastion and to
-  create an **Azure Migrate** project.
+- Azure subscription with read access to the resource group and permission to use Bastion and the
+  pre-provisioned **Azure Migrate** project.
 - Tools:
   - **Azure Migrate appliance** (lightweight installer) — the primary assessment path (Step 2); deploys
     on the source VM and runs discovery + the Azure SQL Database assessment.
@@ -97,13 +85,18 @@ The assessment runs from the **Azure Migrate appliance** installed **on the sour
 VM with **Azure Bastion** (secure, browser-based RDP — no public RDP port required) to deploy the
 appliance (and, if you also want the quick readiness-only check, to run SSMS there).
 
-1. Open the VM `sqlvm-mh2026` → **Connect** → **Bastion**.
-2. Confirm **Using Bastion: bastion-mh2026** shows **Provisioning State: Succeeded**.
+1. Open the VM `mhu01-srcvm19` → **Connect** → **Bastion**.
+2. Confirm **Using Bastion: mhu01-bastion** shows **Provisioning State: Succeeded**.
 3. Authentication type **VM Password**, enter the VM username/password, then **Connect**.
 
-![Bastion connect blade for sqlvm-mh2026](../../Images/c1-step-04-bastion-connect.png)
+> **Where are the VM credentials?** The VM **username and password are stored in the lab Key vault**
+> (`mhu01kv<suffix>` in `rg-mh-user01`). Open the Key vault → **Objects → Secrets** to read them
+> (e.g. the username defaults to `sqladmin`). You reuse this same password later for the Azure Migrate
+> Windows credential in **Step 2 (9a)**.
 
-> **Alternative:** if your client IP is allowed on `nsg-mh2026`, you can RDP directly with
+![Bastion connect blade for mhu01-srcvm19](../../Images/c1-step-04-bastion-connect.png)
+
+> **Alternative:** if your client IP is allowed on `mhu01-sql-nsg`, you can RDP directly with
 > `mstsc /v:<vm-public-ip>`. Bastion is preferred because it needs no inbound RDP from the internet.
 
 ---
@@ -118,18 +111,19 @@ sizing you carry into Challenge 2. It relies on a lightweight **appliance** depl
 network. For this single-server lab a short discovery window is enough; real engagements collect
 performance data for 7–30 days for accurate right-sizing.
 
-### 2.1 Create the Azure Migrate project and set up the appliance
+### 2.1 Open the Azure Migrate project and set up the appliance
 
-1. In the portal, open **Azure Migrate** → **Get started** → **Create project**.
+1. In the portal, open **Azure Migrate** → **Get started**.
 
    ![Azure Migrate Get started landing page](../../Images/c1-step-2a-azure-migrate-get-started.png)
 
-2. Create the project in `rg-microhack-sql-2026` (or reuse one): set the **subscription**, **resource
-   group**, a **project name** (e.g. `migrate-mh2026`) and a **geography** (France).
+2. Open/use the pre-provisioned Azure Migrate project `mhu01-migrate` that already exists in
+   `rg-mh-user01`. Confirm the **subscription**, **resource group**, **project name** and **geography**
+   (`Sweden`).
 
-   ![Create Azure Migrate project form](../../Images/c1-step-2b-azure-migrate-create-project.png)
+   ![Azure Migrate project details form](../../Images/c1-step-2b-azure-migrate-create-project.png)
 
-   Once created, the project **Overview** is your hub for discovery, assessment and migration.
+   Once opened, the project **Overview** is your hub for discovery, assessment and migration.
 
    ![Azure Migrate project overview](../../Images/c1-step-2c-azure-migrate-overview.png)
 
@@ -151,7 +145,7 @@ performance data for 7–30 days for accurate right-sizing.
 
    ![Azure Migrate project key generated and appliance download](../../Images/c1-step-2f-azure-migrate-project-key.png)
 
-6. **Install the appliance on the VM (via Bastion).** Copy the .zip to `sqlvm-mh2026`, extract it,
+6. **Install the appliance on the VM (via Bastion).** Copy the .zip to `mhu01-srcvm19`, extract it,
    and you'll see the installer set — `AzureMigrateInstaller`, `AzureConnectedMachineAgent`,
    `Dra.Setup.Windows`, etc.
 
@@ -186,12 +180,12 @@ performance data for 7–30 days for accurate right-sizing.
    | Source type | **Windows Server** |
    | Friendly name | `SQLServerOnPrem` |
    | Username | `sqladmin`  *(local account, no `domain\`)* |
-   | Password | *the VM password* |
+   | Password | *the VM password — read it from the lab Key vault (`mhu01kv<suffix>` → **Secrets**), the same one you used for Bastion in Step 1* |
 
    > **Gotcha (the #1 validation failure):** a *SQL Server login* will **not** work here — Azure Migrate
    > authenticates to the OS over WMI/WinRM, so it needs a **local Windows Administrator**. Reuse the
    > Bastion account (`sqladmin`); don't create a separate account. If WinRM isn't already enabled on
-   > the VM, run this once in an elevated PowerShell on `sqlvm-mh2026`:
+   > the VM, run this once in an elevated PowerShell on `mhu01-srcvm19`:
    > ```powershell
    > Enable-PSRemoting -Force
    > winrm quickconfig -quiet
@@ -233,30 +227,49 @@ performance data for 7–30 days for accurate right-sizing.
    > (`net user sqladmin`). Enter the username as plain `sqladmin` (no `domain\` or `.\`).
 
    **9c — Add the SQL credential (for the database assessment).** The Windows credential validates the
-   *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. Add one
-   in the appliance's SQL credentials section — Windows-integrated (`sqladmin`, already `sysadmin`) or
-   SQL auth (`sqladmin`). Without it the host is discovered but the databases are not.
+   *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. You have
+   two options:
+
+   - **Windows-integrated** — reuse `sqladmin` (already a `sysadmin` on the instance). No extra setup.
+   - **SQL authentication** — create a dedicated SQL login for discovery. Connect to the instance with
+     SSMS on the VM (over Bastion) and run the snippet below in a **new query** window, then register
+     `migrate_reader` / your password as a **SQL Server** credential in the appliance:
+
+   ```sql
+   -- Run on the source instance (localhost) as sysadmin to create a SQL login for Azure Migrate
+   USE [master];
+   GO
+   CREATE LOGIN [migrate_reader] WITH PASSWORD = 'Ch4ngeMe!StrongP@ss';
+   GO
+   -- Minimum permissions Azure Migrate needs to read SQL metadata for the assessment
+   ALTER SERVER ROLE [sysadmin] ADD MEMBER [migrate_reader];
+   GO
+   ```
+
+   > Use a strong password and change it from the placeholder above. `sysadmin` is the simplest grant
+   > for the lab; in production you can scope it down (e.g. `VIEW SERVER STATE` + `CONNECT SQL` plus
+   > `db_datareader` per database). Without a SQL credential the host is discovered but the databases
+   > are not.
 
    **9d — Discover.** Let the appliance **discover** the instance and start collecting. A short window
    (15–30 min) is enough for this lab. **Assessments stay disabled until discovery has populated the
    project.**
 
 10. **Confirm the discovery.** Back in the project, open **Explore inventory → Databases**. You should see
-   one **SQL Server** DB instance (`MSSQLSERVER` on `sqlvm-mh2026`) with the discovered databases counted.
+   one **SQL Server** DB instance (`MSSQLSERVER` on `mhu01-srcvm19`) with the discovered databases counted.
    Support status shows **Extended** (SQL Server 2019, still in extended support).
 
-   ![Azure Migrate Databases inventory - MSSQLSERVER on sqlvm-mh2026, SQL Server, Extended support, 4 databases](../../Images/c1-step-2k-azure-migrate-databases-discovered.png)
+   ![Azure Migrate Databases inventory - MSSQLSERVER on mhu01-srcvm19, SQL Server, Extended support, 2 databases](../../Images/c1-step-2k-azure-migrate-databases-discovered.png)
 
-   Click the instance to see the **User databases** tab. The lab DBs appear with their **CompatLevel120**
-   (SQL Server 2014 compatibility), size and **Online** status, all sourced from the **Appliance**:
+   Click the instance to see the **User databases** tab. The lab DBs appear with their compatibility
+   level, size and **Online** status, all sourced from the **Appliance**:
 
    | User DB | Size (MB) | Compatibility level | Status |
    |---|---|---|---|
-   | `TEAM99_TenantDataDB` | 208 | CompatLevel120 | Online |
-   | `TEAM99_SharedMasterDatabDB` | 3172 | CompatLevel120 | Online |
-   | `TEAM99_LocalMasterDataDB` | 272 | CompatLevel120 | Online |
+   | `WideWorldImporters` | 3172 | CompatLevel120 | Online |
+   | `AdventureWorks2019` | 272 | CompatLevel110 | Online |
 
-   ![MSSQLSERVER user databases - the three TEAM99 DBs at CompatLevel120, Online, discovered via Appliance](../../Images/c1-step-2l-azure-migrate-user-databases.png)
+   ![MSSQLSERVER user databases - AdventureWorks2019 and WideWorldImporters, Online, discovered via Appliance](../../Images/c1-step-2l-azure-migrate-user-databases.png)
 
 ### 2.2 Create the assessment
 
@@ -274,7 +287,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
    | Workload | Category | Type |
    |---|---|---|
-   | `sqlvm-mh2026` | Server | Windows Server 2022 |
+   | `mhu01-srcvm19` | Server | Windows Server 2022 |
    | `MSSQLSERVER` | Database | SQL Server |
 
    ![Create assessment Basics tab - name microassessment26 with the SQL instance and host server workloads selected](../../Images/c1-step-2q-create-assessment-basics.png)
@@ -284,7 +297,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
    | Setting | Value |
    |---|---|
-   | Default target location | **France Central** (matches the Azure SQL target region) |
+   | Default target location | **Sweden Central** (matches the Azure SQL target region) |
    | Default environment | Production |
    | Currency / Program | Euro (€) / Pay-As-You-Go |
    | Default savings option | 1 year reserved as applicable |
@@ -294,7 +307,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
    | Azure Hybrid Benefit (Windows + SQL) | **Yes** (bring existing licenses) |
    | Include Microsoft Defender for cloud | Yes |
 
-   ![Create assessment General tab - France Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2r-create-assessment-general.png)
+   ![Create assessment General tab - Sweden Central, performance-based, 95th percentile, Azure Hybrid Benefit and Defender enabled](../../Images/c1-step-2r-create-assessment-general.png)
 
 4. **Review + Create assessment.** Confirm the summary and click **Create assessment**. The assessment
    evaluates the workloads against the recommended Azure SQL targets — **Azure SQL MI**, **Azure SQL
@@ -318,7 +331,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
 >   day** (the `Performance history` you set) for the appliance to profile the VM, then **Recalculate**.
 > - **Azure SQL assessment shows `Servers/SQL instances/User databases = 0` and `Discovery success
 >   0%`, even though discovery works.** First confirm discovery is healthy: **All inventory →
->   `sqlvm-mh2026` → MSSQLSERVER → User databases** should list the 3 `TEAM99_*` DBs with their
+>   `mhu01-srcvm19` → MSSQLSERVER → User databases** should list the 2 user databases with their
 >   **Size (MB)**, **Compatibility level** and **Online** status, Discovery source = *Appliance*
 >   (reading DB size + compat level requires a working SQL connection, so if you see this, the
 >   credential is fine). If the inventory is populated but the **assessment** is empty, the assessment
@@ -332,25 +345,25 @@ SQL databases and the backup file share) against the recommended Azure targets.
 
 ### 2.3 Capture SKU recommendation and cost
 
-The recalculated `microassessment26` (France Central, Azure Hybrid Benefit + Defender) now reports
+The recalculated `microassessment26` (Sweden Central, Azure Hybrid Benefit + Defender) now reports
 **Discovery success 100%** and a full readiness + sizing + cost result. The **Overview** lists 1 server,
-1 SQL instance and 3 user databases, and recommends the modernization path to **Azure SQL Managed
+1 SQL instance and 2 user databases, and recommends the modernization path to **Azure SQL Managed
 Instance** at **€323.40/mo**:
 
-![Assessment overview - microassessment26, 100% discovery, 1 server / 1 SQL instance / 3 databases, recommended path Azure SQL MI, €323.40/mo](../../Images/c1-step-2s-assessment-overview-results.png)
+![Assessment overview - microassessment26, 100% discovery, 1 server / 1 SQL instance / 2 databases, recommended path Azure SQL MI, €323.40/mo](../../Images/c1-step-2s-assessment-overview-results.png)
 
 Open each target tab to read the recommended SKU and monthly cost:
 
 | Target | Strategy | Readiness | Recommended SKU | Monthly cost (€) |
 |---|---|---|---|---|
 | **Azure SQL Managed Instance** (recommended path) | Replatform | **Ready** | 1 instance | **323.40** (Compute 310.50 + Storage 0 + Security 12.90) |
-| **Azure SQL Database** (per-DB) | Replatform | **Ready** (3/3) | GeneralPurpose, Provisioned, Gen5, **2 vCores** | **480.50** (Compute 465.75 + Storage 1.85 + Security 12.90) |
+| **Azure SQL Database** (per-DB) | Replatform | **Ready with conditions** (2/2) | GeneralPurpose, Provisioned, Gen5, **2 vCores** | **320.34** (2 × 160.17 per-DB General Purpose estimate) |
 
 ![Azure SQL MI tab - source 1 SQL instance to target 1 Azure SQL MI, Replatform, Ready, €323.40/mo](../../Images/c1-step-2t-assessment-azure-sql-mi.png)
 
-Azure SQL MI is the cheapest fully-managed target here (**€323.40/mo**) because it consolidates the three
+Azure SQL MI is a comparable fully-managed target here (**€323.40/mo**) because it consolidates the two
 databases onto one shared instance; the Azure SQL Database path prices each database on its own General
-Purpose compute (≈**€160.17/DB → €480.50/mo**). Both are valid — Challenge 2 migrates to **Azure SQL
+Purpose compute (≈**€160.17/DB → €320.34/mo**). Both are valid — Challenge 2 migrates to **Azure SQL
 Database** to keep the lab simple. Keep the assessment export; Challenge 2 references it when you build the
 DMS migration project.
 
@@ -358,30 +371,29 @@ DMS migration project.
 
 The assessment reports each database as **Ready**, **Ready with conditions**, or **Not ready**, and maps
 each issue to the official rule catalogue (a **migration blocker** or a **warning**). Drilling into
-**Databases → Azure SQL Database** shows all **3 of 3 TEAM99 databases as `Ready`** (0 ready-with-conditions,
-0 not-ready) for the **GeneralPurpose, Provisioned, Gen5** target, with support status **Extended**:
+**Databases → Azure SQL Database** shows **2 of 2 databases** with their readiness status for the
+**GeneralPurpose, Provisioned, Gen5** target, with support status **Extended**:
 
-![Databases to Azure SQL Database - 3 of 3 ready, GeneralPurpose Gen5 2 vCores, €480.50/mo](../../Images/c1-step-2u-databases-to-azure-sql-db.png)
+![Databases to Azure SQL Database - 2 of 2 databases, GeneralPurpose Gen5 2 vCores, €320.34/mo](../../Images/c1-step-2u-databases-to-azure-sql-db.png)
 
 | Database | Readiness | Recommended target | Support status | Recommended config | Monthly cost (€) |
 |---|---|---|---|---|---|
-| `TEAM99_LocalMasterDataDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
-| `TEAM99_SharedMasterDatabDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 3 GB | 160.17 |
-| `TEAM99_TenantDataDB` | **Ready** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
+| `AdventureWorks2019` | **Ready with conditions** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
+| `WideWorldImporters` | **Ready with conditions** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 3 GB | 160.17 |
 
 The **Suggested migration tool** column points at **Database Migration Service** for every database — Azure
 Migrate hands you straight into the Challenge 2 workflow:
 
-![Per-database table - Suggested migration tool = Database Migration Service for all three DBs](../../Images/c1-step-2v-suggested-migration-tool-dms.png)
+![Per-database table - Suggested migration tool = Database Migration Service for both DBs](../../Images/c1-step-2v-suggested-migration-tool-dms.png)
 
-**No blockers fired on these samples** — all three came back `Ready` for General Purpose, so the In-Memory
-OLTP / cross-database / CLR rules below are the catalogue you *check against*, not findings you have to
-remediate here. Keep them in mind for a real customer database:
+The samples surface the expected lab findings: **WideWorldImporters** has an In-Memory OLTP finding that
+is tier-gated for Azure SQL Database, and **AdventureWorks2019** has the compatibility-level advisory.
+The other rules below are the catalogue you *check against* for real customer databases:
 
 | Rule / finding | Severity | What it means / decision |
 |---|---|---|
-| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | Only on Azure SQL Database **Business Critical / Premium** (not General Purpose). If it fired you'd pick a BC/Premium tier or drop/convert the memory-optimized tables. *Did not fire here.* |
-| **Compatibility level below current default** | Warning | DBs at CompatLevel120 are supported but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once validated. |
+| **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | WideWorldImporters requires Azure SQL Database **Business Critical / Premium** for memory-optimized tables, or the tables must be dropped/converted before using General Purpose. |
+| **Compatibility level below current default** | Warning | AdventureWorks2019 is supported but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once validated. |
 | `AgentJobs` / `WindowsAuthentication` | Warning (instance) | Agent jobs → Elastic Jobs / Azure Automation; Windows-auth logins → **Microsoft Entra ID** on the target. |
 | `LinkedServer` / `CrossDatabaseReferences` / `XpCmdshell` / `ServiceBroker` / `ClrAssemblies` | Blocker | Hard blockers on Azure SQL DB. The stock samples don't use them, so they **didn't fire** — but this is the catalogue you validate on real databases. |
 
@@ -411,10 +423,8 @@ Migrate **SKU + monthly cost** sizing.
    SQL Server to Azure**.
 3. Under **Step 1 of 4 — Migration readiness assessment**, choose **Run readiness assessment**,
    target **Azure SQL Database**, and select the in-scope databases:
-   - `TEAM99_LocalMasterDataDB`
-   - `TEAM99_SharedMasterDatabDB`
-   - `TEAM99_TenantDataDB`
-   - `TEAM01_AdventureWorks2019`
+   - `AdventureWorks2019`
+   - `WideWorldImporters`
 4. Use **View assessment history** to revisit prior runs. The findings map to the same rule catalogue
    reviewed in **Step 2.4**.
 
@@ -425,11 +435,11 @@ but driven directly from SSMS against the live instance (no appliance, no Arc):
 ![SSMS — Migrate SQL Server to Azure landing page (4-step flow)](../../Images/c1-step-3a-ssms-migrate-menu.png)
 
 The readiness run produces the same **Azure SQL migration assessment report** as Step 2: it confirms
-the source instance (`sqlvm-mh2026`, SQL Server 2019 Developer, Mixed mode, 3 user databases) and the
+the source instance (`mhu01-srcvm19`, SQL Server 2019 Developer, Mixed mode, 2 user databases) and the
 three **migration target recommendations** — **Azure SQL Managed Instance** (★ Recommended), **Azure
 SQL Database** and **SQL Server on Azure VM** — each with its per-database readiness breakdown. Note it
-matches the Step 2.4 findings exactly (2 Ready, 1 Ready with warnings for the Database target), and the
-**Database compatibility** section flags the same single warning:
+matches the Step 2.4 findings exactly, including the In-Memory OLTP finding and compatibility advisory,
+and the **Database compatibility** section flags the same single warning:
 
 ![SSMS — Azure SQL migration assessment report (source instance + target recommendations)](../../Images/c1-step-3b-ssms-assessment-report.png)
 
@@ -446,37 +456,19 @@ matches the Step 2.4 findings exactly (2 Ready, 1 Ready with warnings for the Da
 Challenge 2 migrates a source database into the empty Azure SQL logical server already deployed in
 the resource group. Note its properties now so the migration step is smooth:
 
-![Azure SQL logical server sqlsrvmh2026tin4vcwzqrg3k — overview](../../Images/c1-step-03-sql-target.png)
+![Azure SQL logical server mhu01-sqlsrv-<suffix> — overview](../../Images/c1-step-03-sql-target.png)
 
 | Property | Value | Why it matters for Challenge 2 |
 |---|---|---|
-| Server name | `sqlsrvmh2026tin4vcwzqrg3k.database.windows.net` | Target FQDN for DMS. |
-| Location | France Central | Provision DMS in/near this region. |
-| Authentication | **Microsoft Entra-only** | **Key gotcha:** you cannot create a SQL login. DMS must connect to the target with **Microsoft Entra** auth, and the migration principal needs the `##MS_*##` server roles (see Challenge 2). |
-| Entra admin | `admin@MngEnvMCAP872561.onmicrosoft.com` | The identity used to grant the migration principal. |
+| Server name | `mhu01-sqlsrv-<suffix>.database.windows.net` | Target FQDN for DMS. |
+| Location | Sweden Central | Provision DMS in/near this region. |
+| Authentication | **SQL authentication** | DMS connects to the target with a **SQL login** (`sqladmin`); the migration login is created on the target as described in Challenge 2. |
+| SQL admin login | `sqladmin` | The server administrator login for the target logical server. |
 | Databases | none yet | The target is empty — Challenge 2 creates the destination database and migrates into it. |
 
 ---
 
-## Step 5 — Build the remediation backlog
-
-Turn the readiness findings into a prioritized backlog. Tag each row with the
-**official rule name** so reviewers can trace every item back to the
-[assessment rules article](https://learn.microsoft.com/en-us/data-migration/sql-server/database/assessment-rules?view=azuresql).
-
-| Finding | Source DB | Severity | Decision | When |
-|---|---|---|---|---|
-| Memory-optimized tables | `TEAM99_SharedMasterDatabDB` | Blocker | Choose Business Critical target tier **or** convert the memory-optimized tables to disk-based before migrating to General Purpose | Before Challenge 2 |
-| Compat level 110 | `TEAM01_AdventureWorks2019` | Warning | Raise compat level on the target after migration once validated | After Challenge 2 |
-| Compat level 120 | `TEAM99_*` | Warning | Raise compat level post-cutover | After Challenge 2 |
-| `WindowsAuthentication` | instance | Warning | Re-create needed principals as Microsoft Entra users on the target | During Challenge 2 |
-
-Persist this backlog as `assessment-backlog.md` (or a sheet) next to the exported Azure Migrate
-assessment.
-
----
-
-## Step 6 — (Optional) Command-line assessment without the appliance
+## Step 5 — (Optional) Command-line assessment without the appliance
 
 If you don't want to deploy the Azure Migrate appliance, you can run an assessment from the command
 line with the **`Az.DataMigration` PowerShell module / `az datamigration` Azure CLI**, which uses the
@@ -487,65 +479,6 @@ SKU/cost sizing that Azure Migrate adds):
 2. Run the SQL assessment against the local instance and export the report to JSON/CSV.
 3. Reference:
    [Migrate databases at scale using automation (PowerShell / Azure CLI)](https://learn.microsoft.com/en-us/azure/dms/migration-dms-powershell-cli).
-
----
-
-## Success criteria checklist
-
-- [ ] You connected to `sqlvm-mh2026` (Bastion) and ran the **Azure Migrate** **Azure SQL Database**
-      assessment for the in-scope databases, with findings mapped to official rule IDs.
-- [ ] **SKU recommendation + monthly cost** captured per database from the Azure Migrate assessment.
-- [ ] Tier-impacting finding (In-Memory OLTP in `TEAM99_SharedMasterDatabDB`) identified and a target
-      decision recorded.
-- [ ] *(Optional, single instance)* SSMS migration-component readiness assessment run as a quick
-      cross-check of the same findings.
-- [ ] Prioritized remediation backlog written (fix-before vs fix-after Challenge 2).
-- [ ] Assessment report exported and stored with the lab artifacts.
-
----
-
-## Annex — Useful T-SQL discovery queries
-
-Run these on the source instance (`localhost` on the VM) to sanity-check the Azure Migrate findings:
-
-```sql
--- Databases, size, recovery model, compat level
-SELECT
-    d.name,
-    d.database_id,
-    d.state_desc,
-    d.recovery_model_desc,
-    d.compatibility_level,
-    CAST(SUM(mf.size) * 8.0 / 1024 AS DECIMAL(10,2)) AS size_mb
-FROM sys.databases d
-JOIN sys.master_files mf ON d.database_id = mf.database_id
-WHERE d.database_id > 4
-GROUP BY d.name, d.database_id, d.state_desc, d.recovery_model_desc, d.compatibility_level
-ORDER BY size_mb DESC;
-
--- Memory-optimized (In-Memory OLTP) tables — tier-gated on Azure SQL Database
-SELECT DB_NAME() AS db, COUNT(*) AS memory_optimized_tables
-FROM sys.tables WHERE is_memory_optimized = 1;
-
--- SQL Agent jobs (not supported on Azure SQL DB)
-USE msdb;
-SELECT name, enabled, date_created FROM dbo.sysjobs;
-
--- Linked servers (not supported on Azure SQL DB)
-SELECT name, product, provider, data_source FROM sys.servers WHERE server_id > 0;
-
--- CLR assemblies (not supported on Azure SQL DB)
-SELECT name, permission_set_desc, is_user_defined FROM sys.assemblies WHERE is_user_defined = 1;
-
--- Cross-database references (not supported on Azure SQL DB)
-SELECT DISTINCT
-    referencing_schema_name = OBJECT_SCHEMA_NAME(d.referencing_id),
-    referencing_object_name = OBJECT_NAME(d.referencing_id),
-    referenced_database_name = d.referenced_database_name
-FROM sys.sql_expression_dependencies d
-WHERE d.referenced_database_name IS NOT NULL
-  AND d.referenced_database_name <> DB_NAME();
-```
 
 ---
 
