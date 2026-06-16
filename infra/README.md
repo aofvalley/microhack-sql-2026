@@ -21,9 +21,10 @@ One resource group `rg-<prefix>-user<NN>` (e.g. `rg-mhlab-user01`) containing:
 | Source VM 2 (Windows Server 2025 + SQL Server 2025) | `bicep/modules/sourceVm.bicep` | MI Link migration **source** (Challenge 3); same databases and tooling as VM 1. |
 | Azure SQL logical server | `bicep/modules/sqlServer.bicep` | DMS migration **target** (Challenge 2); SQL + Microsoft Entra ID authentication. |
 | Azure SQL Managed Instance | `bicep/modules/sqlMi.bicep` | MI Link migration **target** (Challenge 3). |
+| Azure Migrate project | `bicep/modules/migrate.bicep` | Per-user `<prefix>u<NN>-migrate` project for the Challenge 1 assessment (discover the SQL Server 2019 source and assess against Azure SQL targets). |
 | Key Vault | `bicep/modules/keyVault.bicep` | Stores the attendee's VM / SQL credentials. |
 | Log Analytics workspace | `bicep/modules/logAnalytics.bicep` | Per-user `<prefix>u<NN>-law` workspace for diagnostics/telemetry of the lab resources. |
-| RBAC | `bicep/modules/userEnvironment.bicep` | Contributor + Key Vault Secrets User + VM Administrator Login on the user's RG. |
+| RBAC | `bicep/modules/userEnvironment.bicep` | Contributor + Key Vault Secrets User + VM Administrator Login + Security Admin on the user's RG. |
 
 See `docs/lab-introduction.md` for the lab overview and objectives, and `docs/architecture.md`
 plus `docs/diagrams/` for the full architecture and Azure diagrams.

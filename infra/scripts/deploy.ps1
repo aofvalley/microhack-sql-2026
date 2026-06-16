@@ -147,8 +147,18 @@ function Publish-SetupScriptToStaging {
     }
     if ($StorageAccountName.Length -gt 24) { $StorageAccountName = $StorageAccountName.Substring(0, 24) }
 
-    Write-Host "Ensuring staging resource group $stagingRg"
-    Invoke-Az -Arguments @('group', 'create', '--name', $stagingRg, '--location', $Location) | Out-Null
+    # The staging resource group/account is shared per subscription. When deploying
+    # students across multiple regions, $Location differs from where the staging RG
+    # was first created, and 'az group create' rejects a different location for an
+    # existing RG. The staging account works cross-region (CSE downloads the SAS over
+    # HTTPS), so reuse the existing RG as-is and only create it when missing.
+    if ((Invoke-Az -Arguments @('group', 'exists', '--name', $stagingRg)).Output -join '' -eq 'true') {
+        Write-Host "Reusing existing staging resource group $stagingRg"
+    }
+    else {
+        Write-Host "Creating staging resource group $stagingRg in $Location"
+        Invoke-Az -Arguments @('group', 'create', '--name', $stagingRg, '--location', $Location) | Out-Null
+    }
 
     $showExisting = Invoke-Az -Arguments @('storage', 'account', 'show', '--resource-group', $stagingRg, '--name', $StorageAccountName, '--query', 'name', '--output', 'tsv') -AllowFailure
     if ($showExisting.ExitCode -ne 0) {
@@ -506,6 +516,13 @@ try {
         Write-Host "Creating/assigning Entra lab users in $tenantDomain"
         & $createUsersScript -UserCount $UserCount -StartIndex $StartIndex -TenantDomain $tenantDomain -Prefix $Prefix -InitialPassword $InitialPassword -SubscriptionId $SubscriptionId -AssignRbac
         if ($LASTEXITCODE -ne 0) { throw 'create-users.ps1 failed.' }
+
+        if ($deploySqlMiBool) {
+            $setMiAdminScript = Join-Path -Path $PSScriptRoot -ChildPath 'set-mi-entra-admin.ps1'
+            Write-Host 'Mapping each student as the Entra ID administrator of their SQL Managed Instance'
+            & $setMiAdminScript -UserCount $UserCount -StartIndex $StartIndex -TenantDomain $tenantDomain -Prefix $Prefix -SubscriptionId $SubscriptionId -WaitForReady
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'set-mi-entra-admin.ps1 did not map every Managed Instance; re-run it once the remaining instances are Ready.' }
+        }
     }
     elseif ($CreateUsers -and $SkipUsers) {
         Write-Host 'CreateUsers and SkipUsers were both specified. Skipping user creation.'

@@ -50,7 +50,7 @@ rg-<prefix>-user<NN>
         Azure SQL logical server: public endpoint, firewall enabled, SQL + Microsoft Entra ID auth
         Azure Key Vault: per-student, RBAC-authorized, stores all credentials
         Log Analytics workspace: per-student, diagnostics/telemetry for the lab resources
-        Entra ID user: Contributor + Key Vault Secrets User + VM Admin Login, scoped to this resource group
+        Entra ID user: Contributor + Key Vault Secrets User + VM Admin Login + Security Admin, scoped to this resource group
 ```
 
 ## Credentials and Key Vault
@@ -78,7 +78,7 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | --- | --- | --- | --- |
 | Resource group | `rg-<prefix>-user<NN>` | Isolation, RBAC boundary, teardown unit. | Challenges 0-5 |
 | Entra ID user | Created by `scripts\create-users.ps1` | Student sign-in identity with scoped access. | Challenges 0-5 |
-| RBAC assignments | Contributor + Key Vault Secrets User + VM Administrator Login, scoped to the student RG | Manage own RG, read Key Vault secrets, sign in via Bastion. | Challenges 0-5 |
+| RBAC assignments | Contributor + Key Vault Secrets User + VM Administrator Login + Security Admin, scoped to the student RG | Manage own RG, read Key Vault secrets, sign in via Bastion, manage security/Defender configuration for the Azure Migrate assessment. | Challenges 0-5 |
 | Azure Key Vault | One per student, RBAC-authorized, public endpoint | Stores all lab credentials (VM admin + SQL admin). Students read them with their Key Vault Secrets User role. | Challenges 0-5 |
 | Log Analytics workspace | One per student (`<prefix>u<NN>-law`), PerGB2018, 30-day retention | Collects diagnostics/telemetry for the student's lab resources. | Challenges 0-5 |
 | Source VM 1 (SQL 2019) | `Standard_D4s_v5` default, `<prefix>u<NN>-srcvm19` | SQL Server 2019 source for the DMS migration. | Challenge 2 source |
@@ -90,7 +90,8 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | Azure Bastion | One per resource group | Browser-based RDP to both source VMs without distributing direct RDP steps. | Challenges 0-5 |
 | Azure SQL logical server | Public endpoint, firewall allowing Azure services and the student; SQL + Microsoft Entra ID auth | Target where students create the DMS database. | Challenge 2 |
 | Azure SQL databases | None pre-created | Students create the target database themselves. | Challenge 2 |
-| Azure SQL Managed Instance | GP_Gen5, 4 vCores, public endpoint enabled | Destination for Managed Instance Link migration. | Challenge 3 |
+| Azure SQL Managed Instance | GP_Gen5, 4 vCores, public endpoint enabled; the student is its Entra ID administrator | Destination for Managed Instance Link migration. | Challenge 3 |
+| Azure Migrate project | One per student (`<prefix>u<NN>-migrate`), located in the student RG region | Umbrella project for discovering the SQL Server 2019 source and running the three Azure SQL assessments. | Challenge 1 |
 | VNet | `10.0.0.0/16` per student | Private address space local to the student environment. | Challenges 0-5 |
 | `snet-sql` | VM subnet | Hosts both source VMs (SQL 2019 and SQL 2025). | Challenges 1-3 |
 | `AzureBastionSubnet` | Bastion subnet | Required subnet for Azure Bastion. | Challenges 0-5 |
@@ -105,9 +106,9 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 | VNet | Per student, `10.0.0.0/16` | No shared VNet between students. | Prevents cross-student network access and simplifies teardown. |
 | `snet-sql` | Source VM subnet | Allows required VM and Bastion traffic. | Students administer both SQL Server source VMs. |
 | `AzureBastionSubnet` | Bastion subnet | NSG allows Azure Bastion-required traffic. | Enables browser-based RDP. |
-| `snet-mi` | SQL MI subnet | Delegated to `Microsoft.Sql/managedInstances`; NSG allows MI-required ports. | Required for Azure SQL Managed Instance deployment and operation. |
+| `snet-mi` | SQL MI subnet | Delegated to `Microsoft.Sql/managedInstances`; NSG allows MI-required ports plus inbound TCP 3342 (public endpoint). | Required for Azure SQL Managed Instance deployment and operation. |
 | Azure SQL logical server firewall | Logical server | Public endpoint with firewall rule allowing Azure services and the student. | Keeps Challenge 2 simple and avoids private endpoint setup. |
-| Azure SQL MI public endpoint | Managed instance | Public endpoint enabled. | Supports the lab design decision to avoid private networking complexity. |
+| Azure SQL MI public endpoint | Managed instance | Public endpoint enabled; the `snet-mi` NSG allows inbound TCP **3342** from the Internet for client connectivity. | Supports the lab design decision to avoid private networking complexity. |
 
 ## Isolation model
 
@@ -115,7 +116,7 @@ protection is disabled so `scripts\cleanup.ps1` can fully remove each vault duri
 
 - Every student gets a separate resource group.
 - Every student gets a separate VNet, even though each VNet uses the same `10.0.0.0/16` address space.
-- RBAC is scoped to the student's resource group (Contributor + Key Vault Secrets User + VM Admin Login).
+- RBAC is scoped to the student's resource group (Contributor + Key Vault Secrets User + VM Admin Login + Security Admin).
 - Each student gets a dedicated, RBAC-authorized Key Vault holding their credentials.
 - There is no intentional cross-student routing, peering, or shared database target.
 - Teardown can be performed per student by deleting the student's resource group and user assignments, or for the whole cohort with `scripts\cleanup.ps1`.
@@ -161,12 +162,21 @@ Azure SQL Managed Instance is required for the Managed Instance Link challenge, 
 **3-6 hours** to provision and is the largest cost driver. The `deploySqlMi` parameter allows
 facilitators to skip it for dry runs, early setup, or cohorts that do not run Challenge 3.
 
+### Managed Instance Entra ID administrator
+
+Each student is mapped as the **Microsoft Entra ID administrator of their own Managed Instance** by
+`scripts\set-mi-entra-admin.ps1` (invoked from `deploy.ps1` after user creation). Assigning an MI
+Entra admin requires the instance's system-assigned managed identity to hold the Entra **Directory
+Readers** role; the script grants that role to each MI identity first, then sets the admin once the
+instance is `Ready`. Managing the Directory Readers role requires the facilitator to be Global
+Administrator or Privileged Role Administrator in the tenant.
+
 ## Mapping to lab challenges 0-5
 
 | Lab challenge | Infrastructure support |
 | --- | --- |
 | Challenge 0: environment access and orientation | Entra ID user, RBAC, resource group, Key Vault (credentials), Bastion, source VM tooling. |
-| Challenge 1: assess SQL Server 2019 source | Source VM 1 with SQL Server 2019 Developer, restored AdventureWorks2019 and WideWorldImporters, SSMS 20, VS Code + MSSQL extension. |
+| Challenge 1: assess SQL Server 2019 source | Source VM 1 with SQL Server 2019 Developer, restored AdventureWorks2019 and WideWorldImporters, SSMS 20, VS Code + MSSQL extension; per-student Azure Migrate project (`<prefix>u<NN>-migrate`). |
 | Challenge 2: migrate to Azure SQL Database with DMS | SQL Server 2019 source VM; Azure SQL logical server (public endpoint, firewall, SQL + Entra ID auth); students create the target database. |
 | Challenge 3: migrate to Azure SQL Managed Instance with MI Link | Source VM 2 (SQL Server 2025 on Windows Server 2025); Azure SQL Managed Instance GP_Gen5 4 vCores in a delegated subnet. |
 | Challenge 4: validate and modernize | Source and target SQL platforms remain available for comparison, testing, and application/tooling exercises. |

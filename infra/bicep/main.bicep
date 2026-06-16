@@ -39,6 +39,9 @@ param deploySourceVm bool = true
 @description('Deploy the per-student Azure SQL Managed Instance (slow, ~3-6h, and costly).')
 param deploySqlMi bool = true
 
+@description('Deploy the per-student Azure Migrate project (used in Challenge 1 assessment).')
+param deployMigrate bool = true
+
 @description('VM size for the source SQL VM.')
 param vmSize string = 'Standard_D4s_v5'
 
@@ -84,6 +87,7 @@ module userEnv 'modules/userEnvironment.bicep' = [for (i, idx) in userIndexes: {
     sqlAdminPassword: sqlAdminPassword
     deploySourceVm: deploySourceVm
     deploySqlMi: deploySqlMi
+    deployMigrate: deployMigrate
     setupScriptUri: setupScriptUri
     autoShutdownTime: autoShutdownTime
     resourceTags: resourceTags
@@ -103,4 +107,5 @@ output users array = [for (i, idx) in userIndexes: {
   sqlMiFqdn: userEnv[idx].outputs.sqlMiFqdn
   keyVaultName: userEnv[idx].outputs.keyVaultName
   logAnalyticsName: userEnv[idx].outputs.logAnalyticsName
+  migrateProjectName: userEnv[idx].outputs.migrateProjectName
 }]
