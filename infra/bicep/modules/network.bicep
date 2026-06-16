@@ -59,6 +59,19 @@ resource sqlNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
           destinationAddressPrefix: '*'
         }
       }
+      {
+        name: 'Allow-SQL-5022'
+        properties: {
+          priority: 1020
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '5022'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: '*'
+        }
+      }
     ]
   }
 }
@@ -158,6 +171,19 @@ resource miNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = if (deploy
           destinationPortRange: '*'
           sourceAddressPrefix: '*'
           destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-SQL-5022'
+        properties: {
+          priority: 100
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '5022'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: 'VirtualNetwork'
         }
       }
       {
