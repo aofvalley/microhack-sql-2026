@@ -56,6 +56,7 @@ resource managedInstance 'Microsoft.Sql/managedInstances@2023-08-01-preview' = {
     proxyOverride: 'Proxy'
     minimalTlsVersion: '1.2'
     zoneRedundant: false
+    databaseFormat: 'SQLServer2025'
   }
 }
 
