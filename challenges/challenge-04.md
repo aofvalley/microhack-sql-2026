@@ -4,13 +4,13 @@
 
 ## Goal
 
-The goal of this exercise is to understand monitoring and performance optimization on Azure SQL Managed Instance using Azure Monitor for SQL, Database Watcher preview, and KQL.
+The goal of this exercise is to understand monitoring and performance optimization on Azure SQL Managed Instance using Azure Monitor for SQL and KQL.
 
 ## Actions
 
 * Identify performance issues, their root causes, and possible fixes
 * Use Azure Portal, Azure Monitor metrics, and Query Store to identify performance bottlenecks
-* Use Log Analytics or Database Watcher data with KQL to visualize Azure SQL MI and database statistics
+* Use Log Analytics with KQL to visualize Azure SQL MI and database statistics
 
 ## Success criteria
 
