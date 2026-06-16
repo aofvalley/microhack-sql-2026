@@ -74,10 +74,9 @@ For Azure SQL Managed Instance, you need to be a member of the SQL Managed Insta
 |Microsoft.Sql/managedInstances/hybridLink|/read, /write, /delete|
 |Microsoft.Sql/managedInstances/serverTrustCertificates|/write, /delete, /read|
 
-
-
-
 ## Task: Enable local firewall inbound rule for port 5022
+
+Create an inbound Windows Firewall rule on the source SQL Server 2025 VM to allow TCP 5022. This port is required by the database mirroring endpoint used by SQL Managed Instance link, so opening it ensures replication traffic can reach the source instance during link creation and synchronization.
 
 
 ![New rule wizard](../../Images/c3-step1.0-windows-firewall.png)
@@ -89,10 +88,14 @@ For Azure SQL Managed Instance, you need to be a member of the SQL Managed Insta
 
 ## Task: Ensure Agent Service is running
 
+Start and verify SQL Server Agent on the source VM. Managed Instance link uses SQL Agent jobs for parts of the setup and ongoing operations, so this service must be running to create the link successfully and keep replication tasks healthy.
+
 ![Enable Agent service](../../Images/c3-step2.0-agent-service-1.png)
 ![Enable Agent service](../../Images/c3-step2.0-agent-service-2.png)
 
 ## Task: Create database master key
+
+Create a Database Master Key in the master database to protect cryptographic objects used by the link setup. This is a prerequisite for securely creating and storing endpoint certificates that enable encrypted communication between SQL Server 2025 and Azure SQL Managed Instance.
 
 ``` sql
 USE master;
@@ -112,9 +115,13 @@ SELECT * FROM sys.symmetric_keys WHERE name LIKE '%DatabaseMasterKey%';
 
 ## Task: Enable Accelerated Database Recovery
 
+Enable Accelerated Database Recovery (ADR) on the source database. ADR improves transaction recovery behavior and is required for this migration pattern, helping the source database meet SQL Managed Instance link prerequisites before seeding and replication begin.
+
 ![Enable Accelerated Database Recovery](../../Images/c3-step4.0-accelerated-database-recovery-1.png)
 
 ## Task: Create Database Mirroring endpoint
+
+Create a certificate-based database mirroring endpoint on the source SQL Server instance. This endpoint listens on port 5022 and establishes the secure transport channel required by SQL Managed Instance link to send transaction log changes from the source VM to the target managed instance.
 
 ``` sql
 USE master
@@ -146,6 +153,8 @@ GO
 
 ## Task: Enable Always-on Availability Groups
 
+Enable the Always On Availability Groups feature on the source SQL Server 2025 instance and restart services if needed. SQL Managed Instance link depends on AG technologies under the hood, so this step activates the high-availability components required to initialize and maintain the link.
+
 ![Enable Always-on Availability Groups](../../Images/c3-step6.0-alwayson-ag-1.png)
 
 ![Enable Always-on Availability Groups](../../Images/c3-step6.0-alwayson-ag-2.png)
@@ -155,6 +164,8 @@ GO
 ![Enable Always-on Availability Groups](../../Images/c3-step6.0-alwayson-ag-4.png)
 
 ## Task: Enable startup trace flags
+
+Configure the required startup trace flags in SQL Server Configuration Manager for the source instance. These flags enable behavior needed by SQL Managed Instance link scenarios, ensuring the source engine starts with the correct settings before link creation and failover operations.
 
 ![Enable startup trace flags](../../Images/c3-step7.0-trace-flags-1.png)
 
@@ -168,6 +179,8 @@ GO
 
 ## Task: Perform a full database backup
 
+Take a full backup of the source database to start a valid backup chain. SQL Managed Instance link setup relies on this chain for initial seeding and synchronization, so this backup ensures the target can initialize correctly and avoid backup-chain related errors during migration.
+
 ![Full database backup](../../Images/c3-step8.0-db-backup-1.png)
 
 ![Full database backup](../../Images/c3-step8.0-db-backup-2.png)
@@ -177,6 +190,8 @@ GO
 ![Full database backup](../../Images/c3-step8.0-db-backup-4.png)
 
 ## Task: Test network connection
+
+Validate end-to-end network connectivity between the source SQL Server VM and Azure SQL Managed Instance, including DNS resolution and TCP reachability on required ports. This confirms that endpoint traffic can flow and helps detect NSG, routing, or firewall issues before creating the link.
 
 ![Test network connection](../../Images/c3-step9.0-test-nw-connection-1.png)
 
@@ -197,6 +212,8 @@ GO
 ![Test network connection](../../Images/c3-step9.0-test-nw-connection-9.png)
 
 ## Task: Create Azure SQL Managed Instance link
+
+Use SQL Server Management Studio to create the SQL Managed Instance link from the source SQL Server 2025 database to the target managed instance. In this wizard, you select source and target settings, validate prerequisites, and start continuous replication for the migration cutover path.
 
 ![New Managed Instance link](../../Images/c3-step10.0-new-mi-link-1.png)
 
@@ -223,6 +240,8 @@ GO
 ![New Managed Instance link](../../Images/c3-step10.0-new-mi-link-12.png)
 
 ## Task: Check Azure SQL Managed Instance link status
+
+Review link status in SSMS and Azure to confirm the connection is healthy and replication is progressing from source to target. Validate with read checks and controlled data changes to ensure synchronized results, proving the link is ready for a safe planned failover.
 
 ![Managed Instance link status](../../Images/c3-step11.0-mi-link-status-1.png)
 
@@ -269,6 +288,8 @@ WHERE BusinessEntityID = 1
 
 ## Task: Failover to Azure SQL Managed Instance
 
+Execute a planned failover to switch primary role from SQL Server 2025 on the VM to Azure SQL Managed Instance. This step finalizes the migration path by making the managed instance writable while preserving data consistency through synchronized replication.
+
 ![Failover to Azure SQL Managed Instance](../../Images/c3-step12.0-failover-1.png)
 
 ![Failover to Azure SQL Managed Instance](../../Images/c3-step12.0-failover-2.png)
@@ -287,6 +308,8 @@ WHERE BusinessEntityID = 1
 
 ## Task: Check Azure SQL Managed Instance link status
 
+After failover, verify that role status and replication direction reflect the new topology, with Azure SQL Managed Instance as primary. Confirm expected behavior in monitoring views to ensure the environment is stable before deciding whether to keep or remove the link.
+
 ![Managed Instance link status](../../Images/c3-step13.0-mi-link-status-1.png)
 
 ![Managed Instance link status](../../Images/c3-step13.0-mi-link-status-2.png)
@@ -294,6 +317,8 @@ WHERE BusinessEntityID = 1
 ![Managed Instance link status](../../Images/c3-step13.0-mi-link-status-3.png)
 
 ## Task: Remove Azure SQL Managed Instance link
+
+Remove the SQL Managed Instance link when you are ready to make the cutover permanent. This decommissions replication artifacts and confirms that production now runs on Azure SQL Managed Instance, completing the one-way migration from the source SQL Server 2025 VM.
 
 ![Delete Azure SQL Managed Instance link](../../Images/c3-step14.0-delete-mi-link-1.png)
 
