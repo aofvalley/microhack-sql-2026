@@ -66,7 +66,7 @@ flowchart LR
         TDB["AdventureWorks2019<br/>General Purpose or Business Critical"]
     end
 
-    DB -->|"TCP 1433 - SQL auth"| SHIR
+    DB -->|"TCP 1433 - SQL auth via private IP (10.0.x.x)"| SHIR
     SHIR -->|"registered with auth key"| DMS
     DMS -->|"TCP 1433 - SQL auth via SHIR egress IP"| TDB
 ```
@@ -76,6 +76,11 @@ integration runtime (SHIR)** and keeps the migration wizard disabled until the S
 and running — this was verified directly in the portal (see Step 3.2). The SHIR is installed on the
 source VM `mhu01-srcvm19`; it reaches the source instance over TCP 1433 and bridges the migration
 back to DMS.
+
+> **Lab-specific connectivity note.** In this lab the source VM's **hostname does not resolve** in the
+> DMS source connection, so you must address the source instance by its **private IP** (e.g.
+> `10.0.1.4`, which varies per deployment) in Step 4.3 — not by name. Details and how to find the IP
+> are in Step 4.3.
 
 **Components**
 
@@ -88,7 +93,8 @@ back to DMS.
   memory-optimized / In-Memory OLTP tables; that finding applies to `WideWorldImporters` in this lab)
 - DMS instance: `mhu01-dms`
 - Connectivity: a **self-hosted integration runtime (SHIR)** installed on the source VM reaches the
-  source instance over TCP 1433 and registers against DMS — **required** by the portal for the Azure
+  source instance over TCP 1433 (addressed by its **private IP**, e.g. `10.0.1.4` — the hostname does
+  not resolve in this lab) and registers against DMS — **required** by the portal for the Azure
   SQL Database target (see Step 3.2).
 
 ## Prerequisites
@@ -110,9 +116,13 @@ that grants only the DMS + SQL actions documented in
 
 ### Source SQL Server 2019 permissions
 
-The login that DMS uses to connect to the source must be a member of the **`db_datareader`**
-role on each migrated database. For **schema migration via DMS** the login must be **`db_owner`**
-on each source database.
+**Documented minimum (per the official tutorial).** The login that DMS uses to connect to the
+source must be a member of the **`db_datareader`** role on each migrated database; for **schema
+migration via DMS** the login must be **`db_owner`** on each source database. These are the exact
+database-level roles called out in the
+[DMS tutorial](https://learn.microsoft.com/en-us/data-migration/sql-server/database/database-migration-service?view=azuresql)
+("the SQL Server login that connects to the source … is a member of the **db_datareader** role …
+minimum permissions on the source SQL Server is **db_owner** … for schema migration").
 
 The source SQL Server 2019 instance uses **SQL authentication**, so create a dedicated SQL login
 for the migration rather than reusing a human or service account. Run the following on the source
@@ -132,6 +142,33 @@ ALTER ROLE db_owner ADD MEMBER [sqlmigration];   -- db_owner is required for sch
 -- For data-only migration db_datareader is sufficient:
 -- ALTER ROLE db_datareader ADD MEMBER [sqlmigration];
 ```
+
+> **Make DMS list the source databases (server-level visibility).** The documented
+> `db_owner`/`db_datareader` roles are enough to **migrate** a database, but in the wizard's **Select
+> databases for migration** step (Step 4.4) DMS first **enumerates the databases on the instance**. A
+> login that only holds database-scoped roles often comes back with an **empty list** (your database
+> does not appear, so you cannot select it), because the enumeration needs **server-level visibility**
+> of the databases — which a login mapped into a single database does not have by default.
+>
+> Grant that visibility **precisely**, keeping the login least-privilege — this is the recommended
+> path:
+>
+> ```sql
+> -- Connect to: mhu01-srcvm19 (source SQL Server 2019), database: master
+> -- Authentication: a sysadmin login (Windows or SQL).
+>
+> -- Server-level visibility so the DMS wizard can enumerate the databases:
+> GRANT VIEW ANY DATABASE   TO [sqlmigration];   -- see every database name in sys.databases
+> GRANT VIEW ANY DEFINITION TO [sqlmigration];   -- read catalog metadata DMS inspects
+> -- The login must also be mapped as a user in each database you migrate (done above for
+> -- AdventureWorks2019 with db_owner). Repeat the USER mapping for any additional database.
+> ```
+>
+> > **Lab quick mitigation (not the norm).** To unblock the wizard fast, adding the login to the
+> > **`sysadmin`** server role (`ALTER SERVER ROLE [sysadmin] ADD MEMBER [sqlmigration];`) also makes
+> > all databases list — this is what we used in the lab to get past the step. It is **not** required
+> > by the official tutorial and is **not** least-privilege, so prefer the granular grants above for
+> > anything beyond a throwaway lab.
 
 > **Enable mixed-mode authentication.** SQL logins only work when the instance runs in **SQL Server
 > and Windows Authentication mode**. If the source rejects the login with error **18456**, confirm
@@ -430,7 +467,7 @@ Select **Next: Connect to source SQL Server**.
 
 | Field | Value |
 |---|---|
-| Source server name | Hostname of the source SQL Server as the SHIR resolves it (e.g. `mhu01-srcvm19`) |
+| Source server name | **The source VM's private IP** (e.g. `10.0.1.4`) — **not** the hostname. See the resolution note below; the IP varies per deployment. |
 | Authentication type | SQL Authentication (the migration login from **Prerequisites → Source SQL Server permissions**) |
 | User name | The migration login (e.g. `sqlmigration`) with `db_owner` on the source database |
 | Password | (lab password) |
@@ -439,23 +476,47 @@ Select **Next: Connect to source SQL Server**.
 
 ![Connect to source SQL Server — hostname, SQL Authentication, Trust server certificate](../../Images/c2-dms-12-wizard-connect-source.png)
 
-> **Tip — server name resolution.** The SHIR opens this connection **from the source VM itself**, so
-> the value here is resolved on that host. In this lab the SHIR runs on the **same machine** as SQL
-> Server, so the plain **hostname** (`mhu01-srcvm19`) — or even `localhost` — connects directly.
-> If the SHIR were on a different host where DNS does not resolve the name, use the source VM's
-> **private IP** instead. Append `,1433` only for a non-default port.
+> **Important — use the private IP, not the hostname (this lab).** The SHIR opens this connection
+> **from the source VM itself**, and in this lab's deployment the **hostname does not resolve in the
+> DMS connection context** — the *Connect to source SQL Server* test fails when you enter
+> `mhu01-srcvm19` (or `localhost`). Enter the source VM's **private IP** instead (e.g. `10.0.1.4`).
+> This lab condition is by design, so treat the private IP as the **required** value here, not a
+> fallback.
+>
+> **The private IP varies per deployment** — confirm yours before typing it:
+>
+> - **On the source VM** (over Bastion), run in PowerShell or `cmd`:
+>
+>   ```powershell
+>   ipconfig
+>   # Use the "IPv4 Address" of the Ethernet adapter on the 10.0.x.x lab subnet (e.g. 10.0.1.4)
+>   ```
+>
+> - **Or in the Azure portal:** open the VM `mhu01-srcvm19` → **Networking** → the NIC's
+>   **Private IP address** (the `10.0.x.x` value on the lab VNet/subnet).
+>
+> Enter that IP in **Source server name**. Append `,1433` only if the instance listens on a
+> non-default port (e.g. `10.0.1.4,1433`). Because the connection rides TCP/IP (not shared memory),
+> make sure the **TCP/IP protocol is enabled** for the instance (SQL Server Configuration Manager →
+> *SQL Server Network Configuration*) and that it is **listening on 1433**.
 
 > **Troubleshooting — `Failed to test connections using provided Integration Runtime`.** When you
 > select **Next**, DMS uses the SHIR to open a test connection to `master`. Two common failures:
 >
 > - **`error: 40 — Could not open a connection to SQL Server` / `network name is no longer
->   available` (SqlErrorNumber 64).** Network/name problem: the server name does not resolve or is
->   not reachable from the SHIR host. Use the hostname/private IP the SHIR can actually reach, and
->   confirm the source VM firewall allows inbound 1433.
+>   available` (SqlErrorNumber 64).** Network/name problem — **this is the lab's hostname-resolution
+>   gap**: the server name does not resolve from the SHIR/DMS connection context. **Use the source
+>   VM's private IP** (e.g. `10.0.1.4`, see the note above) instead of the hostname, confirm the
+>   **TCP/IP protocol is enabled** and the instance is **listening on 1433**, and that the source VM
+>   firewall allows inbound 1433.
 > - **`Login failed for user '…'` (SqlErrorNumber 18456).** Connectivity is fine but the credentials
 >   are rejected. Confirm the login exists, that **SQL Server authentication (mixed mode)** is
 >   enabled on the source instance, and that the user/password are correct (a transposed character is
 >   enough to fail).
+> - **The *Select databases for migration* step (4.4) shows an empty list.** Connectivity and login
+>   are fine, but the login cannot **enumerate** the instance's databases. Grant the missing
+>   server-level visibility (`GRANT VIEW ANY DATABASE` / `VIEW ANY DEFINITION`) — see **Prerequisites
+>   → Source SQL Server 2019 permissions → Make DMS list the source databases**.
 >
 > ![Connect to source — login/connection validation error detail](../../Images/c2-dms-18-connect-source-error.png)
 
