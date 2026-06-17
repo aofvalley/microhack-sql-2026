@@ -11,7 +11,7 @@ az account set --subscription <your-subscription-id>
 az account show --output table
 ```
 
-Required permissions are Owner, or Contributor plus User Access Administrator. You also need permission to create Entra ID users.
+Required permissions are Owner, or Contributor plus User Access Administrator. You also need permission to create Entra ID users, and — to map each student as the Entra ID administrator of their SQL Managed Instance — to manage the **Directory Readers** role (Global Administrator or Privileged Role Administrator).
 
 ### Resource providers (one-time, subscription level)
 
@@ -133,6 +133,26 @@ auto-detecting, `-WhatIf` to preview. The web UI offers the same flow via the **
 free index** button (it sets the *Start index* automatically). Every added environment includes
 an Azure SQL Managed Instance by default.
 
+### Adding a Managed Instance to an existing environment
+
+If a student environment was deployed without an MI (for example `-DeploySqlMi false` was used, or a
+region lacked MI capacity at the time), add one later without touching the existing VMs, Azure SQL
+server or Key Vault:
+
+```powershell
+pwsh -c "& .\scripts\add-mi.ps1 -UserIndexes @(17,18,19,20,21,22) `
+  -SubscriptionId <your-subscription-id> -Prefix mh"
+```
+
+`add-mi.ps1` reads each student's SQL admin credentials from their Key Vault and deploys
+`bicep\add-mi.bicep`, which adds only the delegated `snet-mi` subnet (default `10.0.4.0/24`), the MI
+NSG (incl. inbound TCP 3342), the route table and the Managed Instance. Resource groups that already
+have an MI are skipped. The instance is created in the resource group's region — check that region's
+`SubscriptionSQLManagedInstanceStandardSeriesVCoreQuota` (4 vCores per instance) first. MI
+provisioning takes several hours; afterwards run `scripts\set-mi-entra-admin.ps1` for the same
+indexes to map each student as the MI Entra ID administrator.
+
+
 ## 7. Create users
 
 The deployment model includes one Entra ID user per student, created by `scripts\create-users.ps1`, with these RBAC assignments on the student's resource group:
@@ -140,6 +160,7 @@ The deployment model includes one Entra ID user per student, created by `scripts
 + **Contributor** — manage resources inside their own resource group.
 + **Key Vault Secrets User** — read the lab credentials stored in their per-student Key Vault.
 + **Virtual Machine Administrator Login** — sign in to the source VMs through Bastion.
++ **Security Admin** — manage Microsoft Defender for Cloud / security configuration within their own resource group (used by the Azure Migrate assessment in Challenge 1).
 
 Each user is created with a **temporary password** (default `Temporal01!`, override with
 `-InitialPassword`) and **must change it at first sign-in** (`forceChangePasswordNextSignIn=true`).
@@ -160,6 +181,34 @@ pwsh .\scripts\create-users.ps1 `
 ```
 
 Record generated usernames and initial passwords securely (written to `out\users.csv`). Do not commit credentials to the repository.
+
+### Managed Instance Entra ID administrator
+
+Each student is also set as the **Microsoft Entra ID administrator of their own SQL Managed
+Instance**, giving them admin rights over every database on that instance. `deploy.ps1` performs
+this automatically (after `create-users.ps1`, when an MI is deployed) by invoking
+`scripts\set-mi-entra-admin.ps1`.
+
+> **Prerequisite — Directory Readers.** Setting an Entra admin on a Managed Instance fails with
+> `ServicePrincipalLookupInAadFailedIdentityForbidden` unless the MI's system-assigned managed
+> identity holds the Entra **Directory Readers** role. The script grants this role to each MI
+> identity first (it can take a couple of minutes to propagate), then sets the student admin once
+> the instance is `Ready`. Managing this directory role requires the caller to be **Global
+> Administrator** or **Privileged Role Administrator** in the tenant.
+
+To run it on its own (for example to map instances that finished provisioning after the initial
+deploy):
+
+```powershell
+pwsh .\scripts\set-mi-entra-admin.ps1 `
+  -UserCount 30 -StartIndex 1 -Prefix mh `
+  -TenantDomain <your-tenant>.onmicrosoft.com `
+  -SubscriptionId <your-subscription-id> `
+  -WaitForReady
+```
+
+Resource groups without a Managed Instance are skipped automatically. `-WaitForReady` keeps polling
+each instance (default up to 8 hours) until it reaches `Ready` before assigning the admin.
 
 ## 8. Distribute credentials
 
@@ -197,7 +246,7 @@ For a sample of students, verify:
 | VM setup | SSMS 20, Azure CLI, VS Code, and MSSQL extension are installed on both VMs. |
 | SQL source | AdventureWorks2019 and WideWorldImporters are restored on both VMs. |
 | Azure SQL logical server | Public endpoint, firewall and SQL + Microsoft Entra ID authentication are configured; no target DB is pre-created. |
-| SQL MI | Present only when `deploySqlMi=true`; public endpoint enabled. |
+| SQL MI | Present only when `deploySqlMi=true`; public endpoint enabled; the student is its Entra ID administrator. |
 | Auto-shutdown | Both source VMs have auto-shutdown configured for `1900` UTC. |
 
 ## 10. Power VMs off and on without destroying them

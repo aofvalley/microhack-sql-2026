@@ -34,7 +34,7 @@ param resourceTags object = {}
 
 var miName = toLower('${resourcePrefix}-sqlmi-${uniqueString(resourceGroup().id)}')
 
-resource managedInstance 'Microsoft.Sql/managedInstances@2023-08-01-preview' = {
+resource managedInstance 'Microsoft.Sql/managedInstances@2025-08-01-preview' = {
   name: miName
   location: location
   tags: resourceTags
@@ -55,6 +55,7 @@ resource managedInstance 'Microsoft.Sql/managedInstances@2023-08-01-preview' = {
     publicDataEndpointEnabled: true
     proxyOverride: 'Proxy'
     minimalTlsVersion: '1.2'
+    databaseFormat: 'SQLServer2025'
     zoneRedundant: false
     databaseFormat: 'SQLServer2025'
   }

@@ -1,83 +1,39 @@
-// network.bicep — Per-student VNet, subnets and NSGs.
-// Public networking is used across the lab for simplicity, but the VM has no
-// inbound NSG rules except Bastion; SQL/MI use their own public endpoints + firewall.
+// add-mi.bicep — Adds an Azure SQL Managed Instance to an EXISTING student environment.
+//
+// Use this when a student resource group was originally deployed with deploySqlMi=false
+// (for example because of regional MI capacity during the initial rollout) and the MI now
+// needs to be added without redeploying or disturbing the VMs, Azure SQL server or Key Vault.
+//
+// It adds only: the delegated snet-mi subnet (into the existing VNet), the MI NSG, the MI
+// route table, and the Managed Instance itself. NSG rules mirror modules/network.bicep,
+// including inbound TCP 3342 for the public endpoint.
 
-@description('Azure region.')
+targetScope = 'resourceGroup'
+
+@description('Azure region (must match the existing VNet region).')
 param location string
 
-@description('Short resource name prefix for this student, e.g. mhu01.')
+@description('Short, DNS-safe resource name prefix for this student, e.g. mhu17.')
 param resourcePrefix string
 
-@description('VNet address space, e.g. 10.0.0.0/16.')
-param vnetAddressPrefix string = '10.0.0.0/16'
-
-@description('Subnet for the source SQL VM.')
-param sqlSubnetPrefix string = '10.0.1.0/24'
-
-@description('AzureBastionSubnet prefix (/26 minimum).')
-param bastionSubnetPrefix string = '10.0.2.0/26'
-
-@description('Subnet delegated to SQL Managed Instance.')
+@description('Subnet delegated to SQL Managed Instance (must be free inside the existing VNet address space).')
 param miSubnetPrefix string = '10.0.4.0/24'
 
-@description('Deploy the SQL MI subnet, NSG and route table.')
-param deploySqlMi bool = true
+@description('MI administrator login (use the value already stored in the student Key Vault).')
+param sqlAdminLogin string
+
+@description('MI administrator password (use the value already stored in the student Key Vault).')
+@secure()
+param sqlAdminPassword string
+
+@description('Extra resource tags, e.g. SecurityControl=Ignore, to satisfy MCAPS governance policies.')
+param resourceTags object = {}
 
 var vnetName = '${resourcePrefix}-vnet'
-var sqlNsgName = '${resourcePrefix}-sql-nsg'
 var miNsgName = '${resourcePrefix}-mi-nsg'
 var miRouteTableName = '${resourcePrefix}-mi-rt'
 
-resource sqlNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: sqlNsgName
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'Allow-RDP-Internet'
-        properties: {
-          priority: 1000
-          direction: 'Inbound'
-          access: 'Allow'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '3389'
-          sourceAddressPrefix: 'Internet'
-          destinationAddressPrefix: '*'
-        }
-      }
-      {
-        name: 'Allow-SQL-1433'
-        properties: {
-          priority: 1010
-          direction: 'Inbound'
-          access: 'Allow'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '1433'
-          sourceAddressPrefix: 'Internet'
-          destinationAddressPrefix: '*'
-        }
-      }
-      {
-        name: 'Allow-SQL-5022'
-        properties: {
-          priority: 1020
-          direction: 'Inbound'
-          access: 'Allow'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '5022'
-          sourceAddressPrefix: 'VirtualNetwork'
-          destinationAddressPrefix: '*'
-        }
-      }
-    ]
-  }
-}
-
-// NSG required by SQL Managed Instance. Rules per Microsoft docs for MI subnets.
-resource miNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = if (deploySqlMi) {
+resource miNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
   name: miNsgName
   location: location
   properties: {
@@ -200,19 +156,6 @@ resource miNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = if (deploy
         }
       }
       {
-        name: 'Allow-SQL-5022'
-        properties: {
-          priority: 100
-          direction: 'Outbound'
-          access: 'Allow'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '5022'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: 'VirtualNetwork'
-        }
-      }
-      {
         name: 'allow_management_outbound'
         properties: {
           priority: 100
@@ -242,8 +185,7 @@ resource miNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = if (deploy
   }
 }
 
-// Route table required for SQL MI to keep management traffic symmetric.
-resource miRouteTable 'Microsoft.Network/routeTables@2023-09-01' = if (deploySqlMi) {
+resource miRouteTable 'Microsoft.Network/routeTables@2023-09-01' = {
   name: miRouteTableName
   location: location
   properties: {
@@ -252,56 +194,44 @@ resource miRouteTable 'Microsoft.Network/routeTables@2023-09-01' = if (deploySql
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' existing = {
   name: vnetName
-  location: location
+}
+
+// Added as a standalone subnet resource so the existing VNet/subnets are not redefined.
+resource miSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+  parent: vnet
+  name: 'snet-mi'
   properties: {
-    addressSpace: {
-      addressPrefixes: [ vnetAddressPrefix ]
+    addressPrefix: miSubnetPrefix
+    networkSecurityGroup: {
+      id: miNsg.id
     }
-    subnets: concat([
-        {
-          name: 'snet-sql'
-          properties: {
-            addressPrefix: sqlSubnetPrefix
-            networkSecurityGroup: {
-              id: sqlNsg.id
-            }
-          }
+    routeTable: {
+      id: miRouteTable.id
+    }
+    delegations: [
+      {
+        name: 'miDelegation'
+        properties: {
+          serviceName: 'Microsoft.Sql/managedInstances'
         }
-        {
-          name: 'AzureBastionSubnet'
-          properties: {
-            addressPrefix: bastionSubnetPrefix
-          }
-        }
-      ], deploySqlMi ? [
-        {
-          name: 'snet-mi'
-          properties: {
-            addressPrefix: miSubnetPrefix
-            networkSecurityGroup: {
-              id: miNsg.id
-            }
-            routeTable: {
-              id: miRouteTable.id
-            }
-            delegations: [
-              {
-                name: 'miDelegation'
-                properties: {
-                  serviceName: 'Microsoft.Sql/managedInstances'
-                }
-              }
-            ]
-          }
-        }
-      ] : [])
+      }
+    ]
   }
 }
 
-output vnetId string = vnet.id
-output vnetName string = vnet.name
-output sqlSubnetId string = vnet.properties.subnets[0].id
-output bastionSubnetId string = vnet.properties.subnets[1].id
-output miSubnetId string = deploySqlMi ? vnet.properties.subnets[2].id : ''
+module sqlMi 'modules/sqlMi.bicep' = {
+  name: 'sqlMi'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    miSubnetId: miSubnet.id
+    sqlAdminLogin: sqlAdminLogin
+    sqlAdminPassword: sqlAdminPassword
+    resourceTags: resourceTags
+  }
+}
+
+output managedInstanceName string = sqlMi.outputs.managedInstanceName
+output managedInstanceFqdn string = sqlMi.outputs.managedInstanceFqdn

@@ -32,6 +32,9 @@ param deploySourceVm bool = true
 @description('Deploy the Azure SQL Managed Instance.')
 param deploySqlMi bool = true
 
+@description('Deploy the per-student Azure Migrate project (used in Challenge 1 assessment).')
+param deployMigrate bool = true
+
 @description('Raw URL of the CSE setup script.')
 param setupScriptUri string = ''
 
@@ -152,6 +155,15 @@ module sqlMi 'sqlMi.bicep' = if (deploySqlMi) {
   }
 }
 
+module migrate 'migrate.bicep' = if (deployMigrate) {
+  name: 'migrate'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    resourceTags: resourceTags
+  }
+}
+
 #disable-next-line BCP318
 output vmName string = deploySourceVm ? sourceVm2019.outputs.vmName : ''
 #disable-next-line BCP318
@@ -166,3 +178,5 @@ output keyVaultUri string = keyVault.outputs.keyVaultUri
 output logAnalyticsName string = logAnalytics.outputs.workspaceName
 #disable-next-line BCP318
 output sqlMiFqdn string = deploySqlMi ? sqlMi.outputs.managedInstanceFqdn : ''
+#disable-next-line BCP318
+output migrateProjectName string = deployMigrate ? migrate.outputs.migrateProjectName : ''

@@ -147,7 +147,7 @@ def build_architecture() -> str:
            exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(student, srv, "Portal / SSMS", color="#0078D4",
            exit_=(1, 0.2), entry=(0, 0.2))
-    d.edge(entra, srcvm19, "RBAC (scoped to the RG):\nContributor + Key Vault Secrets User + VM Admin Login",
+    d.edge(entra, srcvm19, "RBAC (scoped to the RG):\nContributor + Key Vault Secrets User + VM Admin Login + Security Admin",
            color="#7FBA00", dashed=True, exit_=(1, 0.5), entry=(0, 0.5))
     d.edge(entra, kv, "read secrets", color="#7FBA00",
            dashed=True, exit_=(0.8, 0), entry=(0, 0.8))

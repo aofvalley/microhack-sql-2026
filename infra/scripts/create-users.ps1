@@ -195,7 +195,7 @@ try {
 
         if ($AssignRbac) {
             $scope = "/subscriptions/$SubscriptionId/resourceGroups/$resourceGroup"
-            foreach ($role in @('Contributor', 'Key Vault Secrets User', 'Virtual Machine Administrator Login')) {
+            foreach ($role in @('Contributor', 'Key Vault Secrets User', 'Virtual Machine Administrator Login', 'Security Admin')) {
                 Write-Host "  Ensuring role '$role' on $resourceGroup"
                 $assignment = Invoke-Az -Arguments @(
                     'role', 'assignment', 'list',
