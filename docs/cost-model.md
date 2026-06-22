@@ -3,7 +3,7 @@
 ## Per-resource rates (approximate, East US, 2026)
 
 | Resource | SKU | Pay-as-you-go rate | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | SQL VM | Standard_D4s_v5 | ~$0.19/hour | Per team |
 | JumpBox | Standard_D2s_v5 | ~$0.096/hour | Per team |
 | Azure Bastion | Basic SKU | ~$0.19/hour + $0.01/GB | Shared |
@@ -16,7 +16,7 @@
 ## Session cost scenarios
 
 | Scenario | Duration | Teams | SQL MI | Estimated cost |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Quick test | 2 hours | 1 | No | ~$1-2 |
 | Single-day workshop | 8 hours | 5 | No | ~$20-30 |
 | Single-day workshop | 8 hours | 5 | Yes | ~$35-50 |

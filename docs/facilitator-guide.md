@@ -13,7 +13,7 @@
 ## Timing guide
 
 | Activity | Estimated time |
-|---|---|
+| --- | --- |
 | Deployment (1-2 teams) | 20-35 min |
 | Deployment (10 teams, parallel) | 45-60 min |
 | Challenge 1 — Assessment & Migration | 60-90 min |
@@ -25,7 +25,7 @@
 ## Cohort size guidance
 
 | Size | Teams | SQL VMs | JumpBoxes | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Single | 1 | 1 | 1 | Self-paced, no coordination needed |
 | Small | 2-5 | 2-5 | 2-5 | Standard workshop format |
 | Medium | 6-15 | 6-15 | 6-15 | Consider parallel deploy |
@@ -55,7 +55,7 @@
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | Bastion cannot connect to VM | CSE still running (VM boot) | Wait 5 min and retry |
 | SQL MI not reachable from JumpBox | MI provisioning not complete | MI takes 4-6 hours; deploy 24h before |
 | `validate.ps1` fails on SQL login | CSE did not complete | Check CSE log in VM serial console |

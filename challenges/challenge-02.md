@@ -19,7 +19,7 @@ database when migrating more than one at scale.
 ## Source and target
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | Source server | SQL Server 2019 on `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`), the Challenge 1 VM |
 | Source database | **AdventureWorks2019** — a single application database restored on the source instance (the other available database, **WideWorldImporters**, is reserved for the Challenge 3 MI Link path) |
 | Target service | Azure SQL Database (single database, **not** Managed Instance) |

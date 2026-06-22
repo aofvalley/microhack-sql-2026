@@ -5,6 +5,9 @@
     creates C:\Lab\Backups folder and SqlBackups SMB share.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Custom Script Extension writes progress to console and log.')]
+param()
+
 $ErrorActionPreference = 'Stop'
 
 function Write-Log {

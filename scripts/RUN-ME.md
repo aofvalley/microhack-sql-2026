@@ -32,7 +32,7 @@ The script is idempotent — safe to re-run after a partial failure.
 After a successful run, `scripts/out/` will contain:
 
 | File | Use |
-|------|-----|
+| ------ | ----- |
 | `team-credentials.csv` | SQL + VM admin credentials (DO NOT commit; `out/` is gitignored) |
 | `connection-guide.md` | Bastion URL + login instructions |
 | `deploy-<timestamp>.log` | Full transcript |

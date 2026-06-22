@@ -4,7 +4,7 @@
 
 ---
 
-## Congratulations!
+## Congratulations
 
 You have completed the **MicroHack — SQL Modernization (2026 edition)**.
 
@@ -13,7 +13,7 @@ You have completed the **MicroHack — SQL Modernization (2026 edition)**.
 ## What you accomplished
 
 | Challenge | Topic | Key skills |
-|---|---|---|
+| --- | --- | --- |
 | [Challenge 0](challenge-00.md) | SQL Server access setup | Source SQL Server connectivity, sample databases, lab credentials |
 | [Challenge 1](challenge-01.md) | Assessment | Azure Migrate, SKU sizing, compatibility findings, readiness report |
 | [Challenge 2](challenge-02.md) | DMS migration (SQL 2019 → Azure SQL DB) | Azure Database Migration Service, Self-hosted IR, schema + data migration |

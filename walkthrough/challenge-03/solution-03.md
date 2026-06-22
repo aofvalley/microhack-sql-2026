@@ -3,7 +3,7 @@
 [Previous Solution](../challenge-02/solution-02.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-04/solution-04.md)
 
 > Outline
-> 
+>
 > 1. Confirm prerequisites on the source SQL Server 2025 (version, trace flags, AG feature).
 > 2. Generate or reuse a Database Master Key and TDE certificate on the source.
 > 3. Create the database mirroring endpoint on the source.
@@ -24,6 +24,7 @@ If you plan to use your secondary managed instance for only disaster recovery, y
 After you create the link, your source database gets a read-only copy on your target secondary replica.
 
 Some things to consider:
+
 - The link feature supports one database per link. To replicate multiple databases from an instance, create a link for each individual database. For example, to replicate 10 databases to SQL Managed Instance, create 10 individual links.
 - Collation between SQL Server and SQL Managed Instance should be the same. A mismatch in collation can cause a mismatch in server name casing and prevent a successful connection from SQL Server to SQL Managed Instance.
 - Error 1475 on your initial SQL Server primary indicates that you need to start a new backup chain by creating a full backup without the COPY ONLY option.
@@ -38,16 +39,16 @@ Some things to consider:
 ## Prerequisites
 
 To replicate your databases to your secondary replica through the link, you need the following prerequisites:
+
 - An active Azure subscription
 - A [supported version of SQL Server](#supported-versions-of-sql-server) with required service update installed
 - An Azure SQL Managed Instance
 - [SQL Server Management Studio](https://learn.microsoft.com/en-us/ssms/sql-server-management-studio-ssms) v19.2 or later
-    
 
 ### Supported versions of SQL Server
 
 | Initial primary version | Operating system (OS) | Disaster recovery options | Minimum required servicing update |
-|-|-|-|-|
+| - | - | - | - |
 | Azure SQL Managed Instance | Windows Server and Linux for the secondary SQL Server instance replica | Bi-directional | Configuring a link from Azure SQL Managed Instance to, and bidirectional failover with, is supported by:  <br>- SQL Server 2025 and SQL MI with the SQL Server 2025 update policy<br>- SQL Server 2022 and SQL MI with the SQL Server 2022 update policy |
 | SQL Server 2025 (17.x) | Windows Server and Linux | Bi-directional | [SQL Server 2025 RTM (17.0.1000.7)](https://learn.microsoft.com/en-us/sql/sql-server/sql-server-2025-release-notes) |
 | SQL Server 2022 (16.x) | Windows Server and Linux | Bi-directional | - [SQL Server 2022 RTM (16.0.1000.6)](https://learn.microsoft.com/en-us/sql/sql-server/sql-server-2022-release-notes): Creating a link from SQL Server 2022 to SQL MI  <br>- [SQL Server 2022 CU10 (16.0.4095.4)](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/sqlserver-2022/cumulativeupdate10): Creating a link from SQL MI to SQL Server 2022 [^1]<br>- [SQL Server 2022 CU13 (16.0.4125.3)](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/sqlserver-2022/cumulativeupdate13): Failing over the link using [Transact-SQL](https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-failover-how-to?view=azuresql&tabs=tsql#fail-over-a-database) |
@@ -77,7 +78,6 @@ For Azure SQL Managed Instance, you need to be a member of the SQL Managed Insta
 ## Task: Enable local firewall inbound rule for port 5022
 
 Create an inbound Windows Firewall rule on the source SQL Server 2025 VM to allow TCP 5022. This port is required by the database mirroring endpoint used by SQL Managed Instance link, so opening it ensures replication traffic can reach the source instance during link creation and synchronization.
-
 
 ![New rule wizard](../../Images/c3-step1.0-windows-firewall.png)
 ![New rule wizard](../../Images/c3-step1.0-rule-wizard-1.png)
@@ -239,7 +239,7 @@ Use SQL Server Management Studio to create the SQL Managed Instance link from th
 
 ![New Managed Instance link](../../Images/c3-step10.0-new-mi-link-12.png)
 
-## Task: Check Azure SQL Managed Instance link status
+## Task: Check Azure SQL Managed Instance link status after failover
 
 Review link status in SSMS and Azure to confirm the connection is healthy and replication is progressing from source to target. Validate with read checks and controlled data changes to ensure synchronized results, proving the link is ready for a safe planned failover.
 
@@ -278,7 +278,7 @@ WHERE BusinessEntityID = 1
 ``` sql
 UPDATE [Person].[Person]
 SET FirstName = 'Rafa',
-	LastName = 'Nadal'
+ LastName = 'Nadal'
 WHERE BusinessEntityID = 1
 ```
 

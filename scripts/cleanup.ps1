@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 <#
     Deletes all resources created by deploy.ps1.
     Requires confirmation unless -Force is specified.
@@ -6,6 +6,7 @@
            .\cleanup.ps1 -ResourceGroup rg-sqlhack-microhack-2026 -Force
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Interactive workshop script uses colored console output.')]
 param(
     [Parameter(Mandatory)] [string] $ResourceGroup,
     [switch] $Force
@@ -16,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 
 $rgInfo = az group show --name $ResourceGroup 2>$null | ConvertFrom-Json -ErrorAction SilentlyContinue
 if (-not $rgInfo) {
-    Write-Host "Resource group '$ResourceGroup' does not exist — nothing to delete." -ForegroundColor Yellow
+    Write-Host "Resource group '$ResourceGroup' does not exist - nothing to delete." -ForegroundColor Yellow
     exit 0
 }
 

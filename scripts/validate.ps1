@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 <#
     Post-deploy smoke test for the MicroHack SQL 2026 workshop environment.
     Checks: VMs running, SQL accessible, team DBs present, Bastion provisioned,
@@ -7,6 +7,7 @@
     Usage: .\validate.ps1 -ResourceGroup rg-sqlhack-microhack-2026 -TeamCount 5 -Prefix sqlhack
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Interactive validation script uses colored pass/fail console output.')]
 param(
     [Parameter(Mandatory)] [string] $ResourceGroup,
     [int]    $TeamCount = 5,
@@ -37,18 +38,18 @@ function Write-Warn {
     $script:warnCount++
 }
 
-Write-Host "`n=== MicroHack SQL 2026 — Deployment Validation ===" -ForegroundColor Cyan
+Write-Host "`n=== MicroHack SQL 2026 - Deployment Validation ===" -ForegroundColor Cyan
 Write-Host "  Resource group : $ResourceGroup"
 Write-Host "  Teams          : $TeamCount"
 Write-Host "  Prefix         : $Prefix`n"
 
 # Resource group
-$rgOk = (az group show --name $ResourceGroup 2>$null | ConvertFrom-Json -ErrorAction SilentlyContinue) -ne $null
+$rgOk = $null -ne (az group show --name $ResourceGroup 2>$null | ConvertFrom-Json -ErrorAction SilentlyContinue)
 Write-Check "Resource group exists" $rgOk
 
 # VNet
 $vnetName = "$Prefix-vnet-shared"
-$vnetOk   = (az network vnet show --resource-group $ResourceGroup --name $vnetName 2>$null) -ne $null
+$vnetOk   = $null -ne (az network vnet show --resource-group $ResourceGroup --name $vnetName 2>$null)
 Write-Check "VNet: $vnetName" $vnetOk
 
 # Azure Bastion
@@ -105,9 +106,9 @@ $allVms = @("$Prefix-sql-2012", "$Prefix-sql-2016") +
           (1..$TeamCount | ForEach-Object { "$Prefix-team-$('{0:D2}' -f $_)" })
 
 foreach ($vm in $allVms) {
-    $schedOk = (az resource show --resource-group $ResourceGroup `
+    $schedOk = $null -ne (az resource show --resource-group $ResourceGroup `
                 --resource-type 'Microsoft.DevTestLab/schedules' `
-                --name "shutdown-computevm-$vm" 2>$null) -ne $null
+                --name "shutdown-computevm-$vm" 2>$null)
     if (-not $schedOk) { $shutdownMissing += $vm }
 }
 

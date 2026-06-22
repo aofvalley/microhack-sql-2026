@@ -32,7 +32,7 @@ IaaS VM; the empty Azure SQL logical server is the migration target you will fil
 ![Resource group rg-mh-user01 — all lab resources](../../Images/c1-step-01-resource-group.png)
 
 | Component | Name | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Resource group | `rg-mh-user01` | Sweden Central |
 | Source VM | `mhu01-srcvm19` | SQL Server 2019 Developer on Windows Server 2022, `Standard_D4as_v5` |
 | Source NSG | `mhu01-sql-nsg` | RDP 3389 from your client IP only; 1433 intra-VNet |
@@ -49,7 +49,7 @@ challenges:
 ![mhu01-srcvm19 — virtual machine overview](../../Images/c1-step-02-source-vm.png)
 
 | Database | Based on | Compat level | Why it's interesting for assessment |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `AdventureWorks2019` | AdventureWorks2019 (OLTP) | 110 (SQL 2008 R2) | Classic OLTP schema; intentionally low compat level to surface a compatibility advisory. |
 | `WideWorldImporters` | WideWorldImporters (OLTP) | 120 (SQL 2014) | Uses **In-Memory OLTP (memory-optimized tables)** — a real tier-impacting finding. |
 
@@ -176,7 +176,7 @@ performance data for 7–30 days for accurate right-sizing.
    discovery requires). Enter it **without** a `domain\` prefix.
 
    | Field | Value |
-   |---|---|
+   | --- | --- |
    | Source type | **Windows Server** |
    | Friendly name | `SQLServerOnPrem` |
    | Username | `sqladmin`  *(local account, no `domain\`)* |
@@ -186,6 +186,7 @@ performance data for 7–30 days for accurate right-sizing.
    > authenticates to the OS over WMI/WinRM, so it needs a **local Windows Administrator**. Reuse the
    > Bastion account (`sqladmin`); don't create a separate account. If WinRM isn't already enabled on
    > the VM, run this once in an elevated PowerShell on `mhu01-srcvm19`:
+>
    > ```powershell
    > Enable-PSRemoting -Force
    > winrm quickconfig -quiet
@@ -196,7 +197,7 @@ performance data for 7–30 days for accurate right-sizing.
    source** and add the VM itself (the appliance discovers the host it runs on):
 
    | Field | Value |
-   |---|---|
+   | --- | --- |
    | Source type | **Windows Server** |
    | Mapped credentials | **SQLServerOnPrem** |
    | IP address / FQDN | the VM **private IP**, e.g. `10.0.1.4` (VM → Networking) |
@@ -213,6 +214,7 @@ performance data for 7–30 days for accurate right-sizing.
    > `errorcode 0x8009030d` even though the network path is fine (an IPv4 *auth* failure, not a
    > connectivity one; the `fe80::…` IPv6 line in the error is harmless noise). Fix it on the VM in an
    > **elevated** PowerShell, then **re-enter the password** in the appliance credential and revalidate:
+>
    > ```powershell
    > # The key fix: let LOCAL admins get a full token over remote WinRM (resolves 0x8009030d)
    > New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' `
@@ -222,6 +224,7 @@ performance data for 7–30 days for accurate right-sizing.
    > Set-Item WSMan:\localhost\Service\Auth\Negotiate -Value $true
    > Restart-Service WinRM
    > ```
+>
    > A stale stored password (e.g. after a VM restart) throws the same *"logon session does not exist"* —
    > so always re-type the password in **Manage credentials** and confirm the account is active
    > (`net user sqladmin`). Enter the username as plain `sqladmin` (no `domain\` or `.\`).
@@ -230,10 +233,10 @@ performance data for 7–30 days for accurate right-sizing.
    *server*; to read the **SQL databases** the appliance needs a **SQL Server credential** too. You have
    two options:
 
-   - **Windows-integrated** — reuse `sqladmin` (already a `sysadmin` on the instance). No extra setup.
-   - **SQL authentication** — create a dedicated SQL login for discovery. Connect to the instance with
-     SSMS on the VM (over Bastion) and run the snippet below in a **new query** window, then register
-     `migrate_reader` / your password as a **SQL Server** credential in the appliance:
+- **Windows-integrated** — reuse `sqladmin` (already a `sysadmin` on the instance). No extra setup.
+- **SQL authentication** — create a dedicated SQL login for discovery. Connect to the instance with
+  SSMS on the VM (over Bastion) and run the snippet below in a **new query** window, then register
+  `migrate_reader` / your password as a **SQL Server** credential in the appliance:
 
    ```sql
    -- Run on the source instance (localhost) as sysadmin to create a SQL login for Azure Migrate
@@ -255,7 +258,7 @@ performance data for 7–30 days for accurate right-sizing.
    (15–30 min) is enough for this lab. **Assessments stay disabled until discovery has populated the
    project.**
 
-10. **Confirm the discovery.** Back in the project, open **Explore inventory → Databases**. You should see
+1. **Confirm the discovery.** Back in the project, open **Explore inventory → Databases**. You should see
    one **SQL Server** DB instance (`MSSQLSERVER` on `mhu01-srcvm19`) with the discovered databases counted.
    Support status shows **Extended** (SQL Server 2019, still in extended support).
 
@@ -265,7 +268,7 @@ performance data for 7–30 days for accurate right-sizing.
    level, size and **Online** status, all sourced from the **Appliance**:
 
    | User DB | Size (MB) | Compatibility level | Status |
-   |---|---|---|---|
+   | --- | --- | --- | --- |
    | `WideWorldImporters` | 3172 | CompatLevel120 | Online |
    | `AdventureWorks2019` | 272 | CompatLevel110 | Online |
 
@@ -286,7 +289,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
    SQL Server **instance** plus its **host server** — so it sizes the full estate:
 
    | Workload | Category | Type |
-   |---|---|---|
+   | --- | --- | --- |
    | `mhu01-srcvm19` | Server | Windows Server 2022 |
    | `MSSQLSERVER` | Database | SQL Server |
 
@@ -296,7 +299,7 @@ SQL databases and the backup file share) against the recommended Azure targets.
    sizing reads the appliance metrics (don't pick *as-on-premises* — it just mirrors the current spec):
 
    | Setting | Value |
-   |---|---|
+   | --- | --- |
    | Default target location | **Sweden Central** (matches the Azure SQL target region) |
    | Default environment | Production |
    | Currency / Program | Euro (€) / Pay-As-You-Go |
@@ -355,7 +358,7 @@ Instance** at **€323.40/mo**:
 Open each target tab to read the recommended SKU and monthly cost:
 
 | Target | Strategy | Readiness | Recommended SKU | Monthly cost (€) |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **Azure SQL Managed Instance** (recommended path) | Replatform | **Ready** | 1 instance | **323.40** (Compute 310.50 + Storage 0 + Security 12.90) |
 | **Azure SQL Database** (per-DB) | Replatform | **Ready with conditions** (2/2) | GeneralPurpose, Provisioned, Gen5, **2 vCores** | **320.34** (2 × 160.17 per-DB General Purpose estimate) |
 
@@ -377,7 +380,7 @@ each issue to the official rule catalogue (a **migration blocker** or a **warnin
 ![Databases to Azure SQL Database - 2 of 2 databases, GeneralPurpose Gen5 2 vCores, €320.34/mo](../../Images/c1-step-2u-databases-to-azure-sql-db.png)
 
 | Database | Readiness | Recommended target | Support status | Recommended config | Monthly cost (€) |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | `AdventureWorks2019` | **Ready with conditions** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 1 GB | 160.17 |
 | `WideWorldImporters` | **Ready with conditions** | Azure SQL DB | Extended | GeneralPurpose, Provisioned, 3 GB | 160.17 |
 
@@ -391,7 +394,7 @@ is tier-gated for Azure SQL Database, and **AdventureWorks2019** has the compati
 The other rules below are the catalogue you *check against* for real customer databases:
 
 | Rule / finding | Severity | What it means / decision |
-|---|---|---|
+| --- | --- | --- |
 | **Memory-optimized tables (In-Memory OLTP)** | Blocker / tier-gated | WideWorldImporters requires Azure SQL Database **Business Critical / Premium** for memory-optimized tables, or the tables must be dropped/converted before using General Purpose. |
 | **Compatibility level below current default** | Warning | AdventureWorks2019 is supported but below the latest default. Raise with `ALTER DATABASE … SET COMPATIBILITY_LEVEL` **after** cut-over once validated. |
 | `AgentJobs` / `WindowsAuthentication` | Warning (instance) | Agent jobs → Elastic Jobs / Azure Automation; Windows-auth logins → **Microsoft Entra ID** on the target. |
@@ -459,7 +462,7 @@ the resource group. Note its properties now so the migration step is smooth:
 ![Azure SQL logical server mhu01-sqlsrv-<suffix> — overview](../../Images/c1-step-03-sql-target.png)
 
 | Property | Value | Why it matters for Challenge 2 |
-|---|---|---|
+| --- | --- | --- |
 | Server name | `mhu01-sqlsrv-<suffix>.database.windows.net` | Target FQDN for DMS. |
 | Location | Sweden Central | Provision DMS in/near this region. |
 | Authentication | **SQL authentication** | DMS connects to the target with a **SQL login** (`sqladmin`); the migration login is created on the target as described in Challenge 2. |

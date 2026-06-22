@@ -1,4 +1,4 @@
-<#
+﻿<#
     Runs on SQL VMs via az vm run-command invoke.
     Restores per-team databases from sample .bak files in C:\Lab\Backups\
     and sets the specified compatibility level.
@@ -10,6 +10,7 @@
       BackupFile  - string, filename inside C:\Lab\Backups\
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'RunCommand bootstrap script writes progress to console and log.')]
 param(
     [int]    $TeamCount   = 1,
     [int]    $CompatLevel = 110,
@@ -34,14 +35,14 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         break
     } catch {
         if ($attempt -eq $maxAttempts) { throw "SQL Server not available after $maxAttempts attempts" }
-        Write-Log "Attempt $attempt/$maxAttempts — waiting 10s..."
+        Write-Log "Attempt $attempt/$maxAttempts - waiting 10s..."
         Start-Sleep -Seconds 10
     }
 }
 
 $backupPath = "C:\Lab\Backups\$BackupFile"
 if (-not (Test-Path $backupPath)) {
-    throw "Backup file not found: $backupPath — run download-sample-dbs.ps1 first"
+    throw "Backup file not found: $backupPath - run download-sample-dbs.ps1 first"
 }
 
 # Read logical file names from the backup (needed for MOVE clauses)
@@ -60,7 +61,7 @@ for ($i = 1; $i -le $TeamCount; $i++) {
         -Query "SELECT state_desc FROM sys.databases WHERE name = N'$dbName'" `
         -TrustServerCertificate
     if ($existing -and $existing.state_desc -eq 'ONLINE') {
-        Write-Log "Already ONLINE: $dbName — skipping"
+        Write-Log "Already ONLINE: $dbName - skipping"
         continue
     }
 
@@ -93,4 +94,4 @@ ALTER DATABASE [$dbName] SET COMPATIBILITY_LEVEL = $CompatLevel;
     Write-Log "Done: $dbName"
 }
 
-Write-Log "setup-team-dbs complete — TeamCount=$TeamCount SampleDb=$SampleDb CompatLevel=$CompatLevel"
+Write-Log "setup-team-dbs complete - TeamCount=$TeamCount SampleDb=$SampleDb CompatLevel=$CompatLevel"

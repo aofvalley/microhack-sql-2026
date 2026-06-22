@@ -7,7 +7,7 @@ Server 2019 IaaS VM (`sqlvm-mh2026`) + one empty Azure SQL Database target
 ## Captured (lean flow — used by `walkthrough/challenge-01/solution-01.md`)
 
 | Step | File | What it shows |
-|------|------|---------------|
+| ------ | ------ | --------------- |
 | 01 | `c1-step-01-resource-group.png` | Resource group `rg-microhack-sql-2026` overview (all lab resources) |
 | 02 | `c1-step-02-source-vm.png` | Source VM `sqlvm-mh2026` overview (SQL 2019, WS2022, D4s_v5) |
 | 03 | `c1-step-03-sql-target.png` | Azure SQL logical server `sqlsrvmh2026tin4vcwzqrg3k` — empty Entra-only target |

@@ -33,7 +33,7 @@ cp parameters.example.json parameters.json
 ## deploy.ps1 parameters
 
 | Parameter | Default | Description |
-|-----------|---------|-------------|
+| ----------- | --------- | ------------- |
 | `SubscriptionId` | required | Azure subscription ID |
 | `TenantId` | required | Entra ID tenant ID |
 | `TeamCount` | 1 | Number of teams (1–50). Each team gets its own JumpBox + SQL login + per-team databases. Use 1 for a single user lab. |
@@ -49,7 +49,7 @@ cp parameters.example.json parameters.json
 
 ## Architecture deployed
 
-```
+```text
 SQLHACK-SHARED-VNET (10.0.0.0/16)
 ├── snet-mi         (10.0.1.0/24)  → SQL Managed Instance (optional)
 ├── snet-mgmt       (10.0.2.0/24)  → sqlhack-sql-2012 (10.0.2.4) + sqlhack-sql-2016 (10.0.2.5)
@@ -60,7 +60,7 @@ SQLHACK-SHARED-VNET (10.0.0.0/16)
 **SQL VMs** (shared across all teams):
 
 | VM | IP | Simulates | Per-team databases |
-|----|----|-----------|-------------------|
+| ---- | ---- | ----------- | ------------------- |
 | `sqlhack-sql-2012` | 10.0.2.4 | SQL 2012 (compat 110) | `TEAM01_AdventureWorks2019`, `TEAM01_WideWorldImporters` |
 | `sqlhack-sql-2016` | 10.0.2.5 | SQL 2016 (compat 130) | same, different compat level |
 
@@ -81,7 +81,7 @@ Each user gets `Virtual Machine User Login` on their JumpBox and `Reader` on the
 ## Output files (`out/`)
 
 | File | Contents |
-|------|----------|
+| ------ | ---------- |
 | `team-credentials.csv` | SQL login, SQL password, VM admin credentials per team |
 | `connection-guide.md` | Instructions with Bastion URL for facilitator to share |
 | `deploy-<timestamp>.log` | Full transcript of the deployment run |
@@ -89,7 +89,7 @@ Each user gets `Virtual Machine User Login` on their JumpBox and `Reader` on the
 ## Estimated costs
 
 | Resource | Est. cost/hr |
-|----------|-------------|
+| ---------- | ------------- |
 | 2× SQL VM Standard_D4s_v5 | ~$0.38 each |
 | N× JumpBox Standard_D2s_v5 | ~$0.10 each |
 | Azure Bastion Basic | ~$0.19 |
@@ -100,7 +100,7 @@ All VMs auto-shutdown at 19:00 UTC. Run `.\cleanup.ps1` after the workshop to av
 ## Troubleshooting
 
 | Issue | Fix |
-|-------|-----|
+| ------- | ----- |
 | `az sql vm create` fails | `az extension add --name sql-vm --upgrade` |
 | DB restore times out | Check `C:\Lab\setup-dbs.log` on the SQL VM via RDP or RunCommand |
 | JumpBox tools missing | Check `C:\Lab\jumpbox-tools.log` on the JumpBox VM |

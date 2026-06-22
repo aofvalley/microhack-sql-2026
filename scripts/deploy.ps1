@@ -1,6 +1,6 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 <#
-    MicroHack SQL Modernization 2026 — Workshop Infrastructure Deployment
+    MicroHack SQL Modernization 2026 - Workshop Infrastructure Deployment
     =====================================================================
     Deploys the full multi-team lab environment:
       - VNet with 4 subnets + NSGs + Azure Bastion
@@ -20,6 +20,10 @@
     Output: scripts/out/team-credentials.csv and scripts/out/connection-guide.md
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Interactive workshop script uses colored console output.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'AdminPassword', Justification = 'Lab credentials are passed to Azure CLI and emitted to the generated team handoff CSV.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingCmdletAliases', '', Justification = 'Analyzer misidentifies generated Markdown table text as commands.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '', Justification = 'Start-Job script block receives values through param and ArgumentList.')]
 param(
     [Parameter(Mandatory)] [string] $SubscriptionId,
     [Parameter(Mandatory)] [string] $TenantId,
@@ -37,21 +41,24 @@ param(
 
 Set-StrictMode -Off
 $ErrorActionPreference = 'Stop'
+[void]$TenantId
+[void]$UsersCSV
+[void]$DryRun
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
-function Write-Step  { param([string]$msg) Write-Host "`n▶  $msg" -ForegroundColor Cyan }
-function Write-OK    { param([string]$msg) Write-Host "   ✓ $msg" -ForegroundColor Green }
-function Write-Info  { param([string]$msg) Write-Host "   ℹ $msg" -ForegroundColor Gray }
-function Write-Warn  { param([string]$msg) Write-Host "   ⚠ $msg" -ForegroundColor Yellow }
+function Write-Step  { param([string]$msg) Write-Host "`n>  $msg" -ForegroundColor Cyan }
+function Write-OK    { param([string]$msg) Write-Host "   OK $msg" -ForegroundColor Green }
+function Write-Info  { param([string]$msg) Write-Host "   i $msg" -ForegroundColor Gray }
+function Write-Warn  { param([string]$msg) Write-Host "   ! $msg" -ForegroundColor Yellow }
 
-function New-RandomSuffix {
+function Get-RandomSuffix {
     -join ((1..6) | ForEach-Object { [char](Get-Random -Minimum 97 -Maximum 123) })
 }
 
-function New-SqlPassword {
+function Get-SqlPassword {
     $upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     $lower   = 'abcdefghijklmnopqrstuvwxyz'
     $digits  = '0123456789'
@@ -75,15 +82,15 @@ function Invoke-AzCmd {
     return $out
 }
 
-function Get-AzResourceExists {
+function Test-AzResourcePresence {
     param([string[]]$ShowArgs)
     az @ShowArgs 2>$null | Out-Null
     return $LASTEXITCODE -eq 0
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Preflight
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Preflight"
 
 az account set --subscription $SubscriptionId --only-show-errors
@@ -93,7 +100,7 @@ Write-OK "Subscription: $($subInfo.name) ($($subInfo.id))"
 if ($TeamCount -lt 1 -or $TeamCount -gt 50) { throw "TeamCount must be 1-50 (got $TeamCount)" }
 
 if (-not $AdminPassword) {
-    $AdminPassword = "Demo@$(New-SqlPassword)!"
+    $AdminPassword = "Demo@$(Get-SqlPassword)!"
     Write-Info "Admin password auto-generated (will be saved to out/team-credentials.csv)"
 }
 
@@ -132,15 +139,15 @@ if ($DryRun) {
 # Pre-generate per-team SQL passwords
 $teamPasswords = @{}
 for ($i = 1; $i -le $TeamCount; $i++) {
-    $teamPasswords[('{0:D2}' -f $i)] = New-SqlPassword
+    $teamPasswords[('{0:D2}' -f $i)] = Get-SqlPassword
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Resource Group
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Resource Group"
 
-if (-not (Get-AzResourceExists 'group', 'show', '--name', $ResourceGroup)) {
+if (-not (Test-AzResourcePresence 'group', 'show', '--name', $ResourceGroup)) {
     Invoke-AzCmd 'group', 'create', '--name', $ResourceGroup, '--location', $Location,
         '--tags', 'workshop=microhack-sql-2026' | Out-Null
     Write-OK "Created: $ResourceGroup"
@@ -148,14 +155,14 @@ if (-not (Get-AzResourceExists 'group', 'show', '--name', $ResourceGroup)) {
     Write-OK "Existing: $ResourceGroup"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Networking: VNet, Subnets, NSGs, Bastion
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Networking"
 
 $vnetName = "$Prefix-vnet-shared"
 
-if (-not (Get-AzResourceExists 'network', 'vnet', 'show', '--resource-group', $ResourceGroup, '--name', $vnetName)) {
+if (-not (Test-AzResourcePresence 'network', 'vnet', 'show', '--resource-group', $ResourceGroup, '--name', $vnetName)) {
     Invoke-AzCmd 'network', 'vnet', 'create',
         '--resource-group', $ResourceGroup, '--name', $vnetName,
         '--location', $Location, '--address-prefix', '10.0.0.0/16' | Out-Null
@@ -179,9 +186,9 @@ if (-not (Get-AzResourceExists 'network', 'vnet', 'show', '--resource-group', $R
     Write-OK "VNet exists: $vnetName"
 }
 
-# NSG — Management subnet (deny inbound RDP from internet)
+# NSG - Management subnet (deny inbound RDP from internet)
 $nsgMgmt = "$Prefix-nsg-mgmt"
-if (-not (Get-AzResourceExists 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $nsgMgmt)) {
+if (-not (Test-AzResourcePresence 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $nsgMgmt)) {
     Invoke-AzCmd 'network', 'nsg', 'create', '--resource-group', $ResourceGroup, '--name', $nsgMgmt, '--location', $Location | Out-Null
     Invoke-AzCmd 'network', 'nsg', 'rule', 'create',
         '--resource-group', $ResourceGroup, '--nsg-name', $nsgMgmt,
@@ -191,12 +198,12 @@ if (-not (Get-AzResourceExists 'network', 'nsg', 'show', '--resource-group', $Re
     Invoke-AzCmd 'network', 'vnet', 'subnet', 'update',
         '--resource-group', $ResourceGroup, '--vnet-name', $vnetName,
         '--name', 'snet-mgmt', '--network-security-group', $nsgMgmt | Out-Null
-    Write-OK "NSG: $nsgMgmt → snet-mgmt"
+    Write-OK "NSG: $nsgMgmt -> snet-mgmt"
 }
 
-# NSG — JumpBox subnet
+# NSG - JumpBox subnet
 $nsgJb = "$Prefix-nsg-jumpboxes"
-if (-not (Get-AzResourceExists 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $nsgJb)) {
+if (-not (Test-AzResourcePresence 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $nsgJb)) {
     Invoke-AzCmd 'network', 'nsg', 'create', '--resource-group', $ResourceGroup, '--name', $nsgJb, '--location', $Location | Out-Null
     Invoke-AzCmd 'network', 'nsg', 'rule', 'create',
         '--resource-group', $ResourceGroup, '--nsg-name', $nsgJb,
@@ -206,13 +213,13 @@ if (-not (Get-AzResourceExists 'network', 'nsg', 'show', '--resource-group', $Re
     Invoke-AzCmd 'network', 'vnet', 'subnet', 'update',
         '--resource-group', $ResourceGroup, '--vnet-name', $vnetName,
         '--name', 'snet-jumpboxes', '--network-security-group', $nsgJb | Out-Null
-    Write-OK "NSG: $nsgJb → snet-jumpboxes"
+    Write-OK "NSG: $nsgJb -> snet-jumpboxes"
 }
 
-# Azure Bastion (Basic SKU — sufficient for workshop)
+# Azure Bastion (Basic SKU - sufficient for workshop)
 $bastionName   = "$Prefix-bastion"
 $bastionPipName = "$bastionName-pip"
-if (-not (Get-AzResourceExists 'network', 'bastion', 'show', '--resource-group', $ResourceGroup, '--name', $bastionName)) {
+if (-not (Test-AzResourcePresence 'network', 'bastion', 'show', '--resource-group', $ResourceGroup, '--name', $bastionName)) {
     Invoke-AzCmd 'network', 'public-ip', 'create',
         '--resource-group', $ResourceGroup, '--name', $bastionPipName,
         '--location', $Location, '--sku', 'Standard', '--allocation-method', 'Static' | Out-Null
@@ -225,9 +232,9 @@ if (-not (Get-AzResourceExists 'network', 'bastion', 'show', '--resource-group',
     Write-OK "Bastion exists: $bastionName"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Storage Account
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Storage Account"
 
 $existingSA = az storage account list --resource-group $ResourceGroup `
@@ -237,7 +244,7 @@ if ($existingSA -and $existingSA.Trim()) {
     $saName = $existingSA.Trim()
     Write-OK "Existing: $saName"
 } else {
-    $saName = ($Prefix -replace '-','') + 'sa' + (New-RandomSuffix)
+    $saName = ($Prefix -replace '-','') + 'sa' + (Get-RandomSuffix)
     Invoke-AzCmd 'storage', 'account', 'create',
         '--resource-group', $ResourceGroup, '--name', $saName,
         '--location', $Location, '--sku', 'Standard_LRS',
@@ -247,9 +254,9 @@ if ($existingSA -and $existingSA.Trim()) {
     Write-OK "Created: $saName (container: backups)"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SQL Legacy VMs (async)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "SQL Legacy VMs (async)"
 
 $sqlVmImage = 'MicrosoftSQLServer:sql2019-ws2022:sqldev-gen2:latest'
@@ -261,9 +268,9 @@ $sqlVms = @(
 )
 
 foreach ($vm in $sqlVms) {
-    if (-not (Get-AzResourceExists 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $vm.name)) {
+    if (-not (Test-AzResourcePresence 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $vm.name)) {
         $nicName = "$($vm.name)-nic"
-        if (-not (Get-AzResourceExists 'network', 'nic', 'show', '--resource-group', $ResourceGroup, '--name', $nicName)) {
+        if (-not (Test-AzResourcePresence 'network', 'nic', 'show', '--resource-group', $ResourceGroup, '--name', $nicName)) {
             Invoke-AzCmd 'network', 'nic', 'create',
                 '--resource-group', $ResourceGroup, '--name', $nicName,
                 '--location', $Location,
@@ -286,9 +293,9 @@ foreach ($vm in $sqlVms) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # JumpBox VMs (async)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "JumpBox VMs (async)"
 
 $jbImage = 'MicrosoftWindowsServer:WindowsServer:2022-datacenter-azure-edition:latest'
@@ -298,9 +305,9 @@ for ($i = 1; $i -le $TeamCount; $i++) {
     $teamNum = '{0:D2}' -f $i
     $jbName  = "$Prefix-team-$teamNum"
 
-    if (-not (Get-AzResourceExists 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $jbName)) {
+    if (-not (Test-AzResourcePresence 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $jbName)) {
         $jbNicName = "$jbName-nic"
-        if (-not (Get-AzResourceExists 'network', 'nic', 'show', '--resource-group', $ResourceGroup, '--name', $jbNicName)) {
+        if (-not (Test-AzResourcePresence 'network', 'nic', 'show', '--resource-group', $ResourceGroup, '--name', $jbNicName)) {
             Invoke-AzCmd 'network', 'nic', 'create',
                 '--resource-group', $ResourceGroup, '--name', $jbNicName,
                 '--location', $Location,
@@ -320,9 +327,9 @@ for ($i = 1; $i -le $TeamCount; $i++) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Wait for all VMs to be running
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Waiting for all VMs (timeout 30 min)"
 
 $allVmNames = ($sqlVms | ForEach-Object { $_.name }) +
@@ -335,13 +342,13 @@ foreach ($vmName in $allVmNames) {
     Write-OK "Ready: $vmName"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SQL IaaS Extension — enables mixed auth, private connectivity
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# SQL IaaS Extension - enables mixed auth, private connectivity
+# -----------------------------------------------------------------------------
 Write-Step "SQL IaaS Extension"
 
 foreach ($vm in $sqlVms) {
-    if (-not (Get-AzResourceExists 'sql', 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $vm.name)) {
+    if (-not (Test-AzResourcePresence 'sql', 'vm', 'show', '--resource-group', $ResourceGroup, '--name', $vm.name)) {
         Invoke-AzCmd 'sql', 'vm', 'create',
             '--resource-group', $ResourceGroup, '--name', $vm.name,
             '--license-type', 'PAYG', '--connectivity-type', 'PRIVATE', '--port', '1433',
@@ -353,9 +360,9 @@ foreach ($vm in $sqlVms) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SQL VM prerequisites (TCP/IP, SQL Agent, backup folder)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "SQL VM prerequisites"
 
 $prereqScript = Get-Content (Join-Path $PSScriptRoot 'cse\install-sqlvm-prereqs.ps1') -Raw
@@ -369,9 +376,9 @@ foreach ($vm in $sqlVms) {
     Write-OK "Prerequisites: $($vm.name)"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Download sample databases onto SQL VMs
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Downloading sample .bak files onto SQL VMs (~5-10 min each)"
 
 $dlScript = Get-Content (Join-Path $PSScriptRoot 'sql\download-sample-dbs.ps1') -Raw
@@ -385,9 +392,9 @@ foreach ($vm in $sqlVms) {
     Write-OK "Downloads done: $($vm.name)"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Restore per-team databases
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Restoring per-team databases"
 
 $setupScript = Get-Content (Join-Path $PSScriptRoot 'sql\setup-team-dbs.ps1') -Raw
@@ -397,7 +404,7 @@ foreach ($vm in $sqlVms) {
         @{ db='AdventureWorks2019'; bak='AdventureWorks2019.bak' },
         @{ db='WideWorldImporters'; bak='WideWorldImporters-Full.bak' }
     )) {
-        Write-Info "Restoring $($dbInfo.db) × $TeamCount teams on $($vm.name) (compat $($vm.compat))..."
+        Write-Info "Restoring $($dbInfo.db) x $TeamCount teams on $($vm.name) (compat $($vm.compat))..."
         Invoke-AzCmd 'vm', 'run-command', 'invoke',
             '--resource-group', $ResourceGroup, '--name', $vm.name,
             '--command-id', 'RunPowerShellScript',
@@ -411,9 +418,9 @@ foreach ($vm in $sqlVms) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Dirty workload + team SQL logins
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Dirty workload + team SQL logins"
 
 $dirtySql  = Get-Content (Join-Path $PSScriptRoot 'sql\dirty-workload.sql') -Raw
@@ -455,10 +462,10 @@ sqlcmd -S localhost -E -TrustServerCertificate ``
     Write-OK "Team ${teamNum}: login=$teamLogin configured on both SQL VMs"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # JumpBox tools (parallel PowerShell background jobs)
-# ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Installing tools on JumpBoxes (parallel — ~20 min)"
+# -----------------------------------------------------------------------------
+Write-Step "Installing tools on JumpBoxes (parallel - ~20 min)"
 
 $jbToolScript = Get-Content (Join-Path $PSScriptRoot 'cse\install-jumpbox-tools.ps1') -Raw
 
@@ -484,9 +491,9 @@ $jobs | Wait-Job | Receive-Job | Where-Object { $_ -match '(?i)error|fail|except
 $jobs | Remove-Job
 Write-OK "JumpBox tool installs done"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Entra ID RBAC (optional, requires UsersCSV)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 if ($userAssignments.Count -gt 0) {
     Write-Step "Entra ID RBAC assignments"
 
@@ -494,7 +501,7 @@ if ($userAssignments.Count -gt 0) {
     for ($i = 1; $i -le $TeamCount; $i++) {
         $teamNum = '{0:D2}' -f $i
         $jbName  = "$Prefix-team-$teamNum"
-        if (-not (Get-AzResourceExists 'vm', 'extension', 'show', '--resource-group', $ResourceGroup,
+        if (-not (Test-AzResourcePresence 'vm', 'extension', 'show', '--resource-group', $ResourceGroup,
                 '--vm-name', $jbName, '--name', 'AADLoginForWindows')) {
             Invoke-AzCmd 'vm', 'extension', 'set',
                 '--resource-group', $ResourceGroup, '--vm-name', $jbName,
@@ -512,7 +519,7 @@ if ($userAssignments.Count -gt 0) {
         $jbId    = az vm show --resource-group $ResourceGroup --name $jbName --query id -o tsv 2>$null
 
         if (-not $jbId) {
-            Write-Warn "JumpBox not found for team $teamNum — skipping $($row.userPrincipalName)"
+            Write-Warn "JumpBox not found for team $teamNum - skipping $($row.userPrincipalName)"
             continue
         }
 
@@ -524,13 +531,13 @@ if ($userAssignments.Count -gt 0) {
             '--role', 'Reader',
             '--assignee', $row.userPrincipalName,
             '--scope', $rgId.Trim() | Out-Null
-        Write-OK "RBAC: $($row.userPrincipalName) → team $teamNum ($jbName)"
+        Write-OK "RBAC: $($row.userPrincipalName) -> team $teamNum ($jbName)"
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Auto-shutdown
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 if ($AutoShutdownTime) {
     Write-Step "Auto-shutdown @ ${AutoShutdownTime} UTC"
     foreach ($vmName in $allVmNames) {
@@ -561,11 +568,11 @@ if ($AutoShutdownTime) {
     Write-OK "Auto-shutdown configured on all VMs"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Optional: SQL Managed Instance (async, 3-6 hours)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 if ($DeploySQLMI) {
-    Write-Step "SQL Managed Instance (async — 3-6 hours)"
+    Write-Step "SQL Managed Instance (async - 3-6 hours)"
     Write-Warn "SQL MI costs ~`$540/month. Delete immediately after the workshop!"
 
     $miName   = "$Prefix-sqlmi"
@@ -573,10 +580,10 @@ if ($DeploySQLMI) {
         --resource-group $ResourceGroup --vnet-name $vnetName --name snet-mi `
         --query id -o tsv 2>$null
 
-    if (-not (Get-AzResourceExists 'sql', 'mi', 'show', '--resource-group', $ResourceGroup, '--name', $miName)) {
+    if (-not (Test-AzResourcePresence 'sql', 'mi', 'show', '--resource-group', $ResourceGroup, '--name', $miName)) {
         # NSG required by SQL MI
         $miNsg = "$Prefix-nsg-mi"
-        if (-not (Get-AzResourceExists 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $miNsg)) {
+        if (-not (Test-AzResourcePresence 'network', 'nsg', 'show', '--resource-group', $ResourceGroup, '--name', $miNsg)) {
             Invoke-AzCmd 'network', 'nsg', 'create',
                 '--resource-group', $ResourceGroup, '--name', $miNsg, '--location', $Location | Out-Null
             foreach ($port in @('9000','9003','1438','1440','1452')) {
@@ -607,9 +614,9 @@ if ($DeploySQLMI) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Output: credentials CSV + connection guide
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 Write-Step "Generating output files"
 
 $csvPath   = Join-Path $outDir 'team-credentials.csv'
@@ -617,7 +624,7 @@ $guidePath = Join-Path $outDir 'connection-guide.md'
 
 $csvRows    = @('team,vmName,sqlLogin,sqlPassword,vmAdminUser,vmAdminPassword')
 $guideLines = @(
-    "# MicroHack SQL 2026 — Workshop Connection Guide",
+    "# MicroHack SQL 2026 - Workshop Connection Guide",
     "",
     "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC",
     "Resource group: $ResourceGroup",
@@ -654,8 +661,8 @@ $guideLines += @(
     "",
     "1. Open a Private/Incognito browser window",
     "2. Log in to the Azure Portal with your assigned credentials",
-    "3. Navigate to: Resource Groups → $ResourceGroup → your JumpBox VM",
-    "4. Click **Connect** → **Bastion**",
+    "3. Navigate to: Resource Groups -> $ResourceGroup -> your JumpBox VM",
+    "4. Click **Connect** -> **Bastion**",
     "5. Username: ``$AdminUsername`` | Password: see table above",
     "6. Find ``_SQLHACK_LAB_INFO.txt`` on the desktop for quick connection details",
     "",
@@ -674,9 +681,9 @@ $guideLines += @(
 Write-OK "Credentials : $csvPath"
 Write-OK "Guide       : $guidePath"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Console summary
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 $sep = "=" * 60
 Write-Host "`n$sep" -ForegroundColor Cyan
 Write-Host " DEPLOYMENT COMPLETE" -ForegroundColor Cyan
@@ -687,7 +694,7 @@ Write-Host " SQL VMs         : $Prefix-sql-2012 (10.0.2.4), $Prefix-sql-2016 (10
 Write-Host " JumpBox VMs     : $Prefix-team-01 .. $Prefix-team-$('{0:D2}' -f $TeamCount)"
 Write-Host " Bastion         : $bastionName"
 Write-Host " Storage account : $saName"
-if ($DeploySQLMI) { Write-Host " SQL MI          : $Prefix-sqlmi (provisioning — check portal)" -ForegroundColor Yellow }
+if ($DeploySQLMI) { Write-Host " SQL MI          : $Prefix-sqlmi (provisioning - check portal)" -ForegroundColor Yellow }
 Write-Host ""
 Write-Host " Credentials CSV : $csvPath"
 Write-Host " Connection guide: $guidePath"

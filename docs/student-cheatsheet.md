@@ -3,7 +3,7 @@
 ## Connection strings
 
 | Target | Connection string |
-|---|---|
+| --- | --- |
 | SQL VM (from JumpBox via SSMS) | Server: `sqlhack-team-XX` (or IP); Auth: SQL Login `TEAM0X_admin` |
 | SQL MI (public endpoint) | Server: `mi-name.public.hash.database.windows.net,3342`; Auth: SQL Login |
 | SQL MI (private, from JumpBox) | Server: `mi-name.hash.database.windows.net`; Auth: SQL or Azure AD |
@@ -13,7 +13,7 @@ Your team's credentials are in `scripts/out/team-credentials.csv` (provided by f
 ## Migration paths comparison
 
 | Path | Source compatibility | Online migration | Link persistence | 2026 recommendation |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | DMS | SQL 2005+ | Yes (CDC) | No | Good for older sources |
 | Managed Instance Link | SQL 2019+ (CU15+), 2022+ | Yes (AG-based) | Yes (can keep as DR) | **Recommended** |
 | LRS (Log Replay) | SQL 2008+ | Yes (log shipping) | No | Good for offline/controlled |

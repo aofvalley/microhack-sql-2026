@@ -2,7 +2,7 @@
 
 ## High-level diagram
 
-```
+```text
 Internet
     |
     |  (no public IPs on VMs)
@@ -27,7 +27,7 @@ All VMs share a single VNet (10.0.0.0/16) with four subnets:
 ## Component table
 
 | Component | SKU / Image | Per team | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | SQL VM | Standard_D4s_v5, SQL 2022 Developer on WS2022 | 1 | CSE installs AdventureWorks2019 + WWI |
 | JumpBox | Standard_D2s_v5, WS2022 | 1 | CSE installs SSMS 20, Az CLI, VS Code MSSQL |
 | Azure Bastion | Basic SKU | Shared | Sole ingress; no public IPs on VMs |
@@ -40,7 +40,7 @@ All VMs share a single VNet (10.0.0.0/16) with four subnets:
 ## Network security
 
 | NSG | Rule | Direction | Action |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | sql-nsg | RDP from bastionSubnet | Inbound | Allow |
 | sql-nsg | SQL from jumpboxSubnet (1433) | Inbound | Allow |
 | sql-nsg | All other inbound | Inbound | Deny |
@@ -56,6 +56,6 @@ Teams cannot access each other's VMs (NSG rules are VM-level; no cross-team SQL 
 ## Deployment paths
 
 | Path | Command | Notes |
-|---|---|---|
+| --- | --- | --- |
 | PowerShell (standard) | `deploy.ps1 -TeamCount N [options]` | Idempotent; 11 parameters |
 | Bicep (opt-in) | `deploy.ps1 -UseBicep -TeamCount N [options]` | Delegates to `az deployment sub create` |

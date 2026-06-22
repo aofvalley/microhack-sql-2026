@@ -152,7 +152,6 @@ have an MI are skipped. The instance is created in the resource group's region â
 provisioning takes several hours; afterwards run `scripts\set-mi-entra-admin.ps1` for the same
 indexes to map each student as the MI Entra ID administrator.
 
-
 ## 7. Create users
 
 The deployment model includes one Entra ID user per student, created by `scripts\create-users.ps1`, with these RBAC assignments on the student's resource group:

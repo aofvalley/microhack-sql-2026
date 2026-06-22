@@ -1,8 +1,11 @@
-<#
+﻿<#
     Runs on SQL VMs via az vm run-command invoke.
     Downloads AdventureWorks2019.bak and WideWorldImporters-Full.bak
     from Microsoft SQL Server Samples GitHub releases to C:\Lab\Backups\.
 #>
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'RunCommand bootstrap script writes progress to console and log.')]
+param()
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
@@ -30,7 +33,7 @@ $downloads = @(
 foreach ($dl in $downloads) {
     if (Test-Path $dl.OutFile) {
         $existingSize = (Get-Item $dl.OutFile).Length
-        Write-Log "Already present: $($dl.Name) ($([math]::Round($existingSize/1MB,1)) MB) — skipping"
+        Write-Log "Already present: $($dl.Name) ($([math]::Round($existingSize/1MB,1)) MB) - skipping"
         continue
     }
     Write-Log "Downloading $($dl.Name)..."

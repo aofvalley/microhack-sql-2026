@@ -18,7 +18,7 @@
 > differ from yours — follow the deployed convention below.
 
 | Placeholder | What it is | Example |
-|---|---|---|
+| --- | --- | --- |
 | `<NN>` | Your two-digit user number | `01` |
 | `rg-mh-user<NN>` | Resource group holding the lab resources | `rg-mh-user01` |
 | `mhu<NN>-srcvm19` | Source SQL Server 2019 VM (from Challenge 1) | `mhu01-srcvm19` |
@@ -82,7 +82,7 @@ back to DMS.
 > `10.0.1.4`, which varies per deployment) in Step 4.3 — not by name. Details and how to find the IP
 > are in Step 4.3.
 
-**Components**
+### Components
 
 - Resource group: `rg-mh-user01`
 - Region: Sweden Central (`swedencentral`, matches the target logical server)
@@ -169,7 +169,6 @@ ALTER ROLE db_owner ADD MEMBER [sqlmigration];   -- db_owner is required for sch
 > > all databases list — this is what we used in the lab to get past the step. It is **not** required
 > > by the official tutorial and is **not** least-privilege, so prefer the granular grants above for
 > > anything beyond a throwaway lab.
-
 > **Enable mixed-mode authentication.** SQL logins only work when the instance runs in **SQL Server
 > and Windows Authentication mode**. If the source rejects the login with error **18456**, confirm
 > mixed mode is enabled (SSMS → *Server Properties → Security → SQL Server and Windows
@@ -200,7 +199,7 @@ schema migration the target login must hold the following **server-level** roles
 exact roles called out in the official DMS tutorial):
 
 | Server role | Purpose |
-|---|---|
+| --- | --- |
 | `##MS_DatabaseManager##` | Create and own databases |
 | `##MS_DatabaseConnector##` | Connect to any database without a user account |
 | `##MS_DefinitionReader##` | Read all catalog views (`VIEW ANY DEFINITION`) |
@@ -229,7 +228,6 @@ EXECUTE sp_addRoleMember 'loginmanager', 'sqlmigration';
 > already has every right above. The dedicated `sqlmigration` login is the least-privilege pattern
 > recommended for real migrations, and reusing the same name on source and target keeps the wizard
 > unambiguous.
-
 > **Entra-only servers.** If your target logical server was deployed with **Microsoft Entra
 > authentication only**, you cannot `CREATE LOGIN … WITH PASSWORD`. Either enable SQL authentication
 > on the server, or create an Entra principal `FROM EXTERNAL PROVIDER`, grant it the same four server
@@ -277,7 +275,7 @@ From the Challenge 1 backlog, fix everything tagged **Before Challenge 2** on th
 instance. Map each item back to its assessment rule:
 
 | Backlog item | Assessment rule |
-|---|---|
+| --- | --- |
 | Remove or rewrite cross-database queries | `CrossDatabaseReferences` |
 | Disable / drop SQL Agent jobs targeting these DBs | `AgentJobs` |
 | Drop linked servers referenced by these DBs | `LinkedServer` |
@@ -453,7 +451,7 @@ The first tab registers an Azure resource that **tracks** the source SQL Server 
 SQL VM resource that represents your source.
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Is your source SQL Server instance tracked in Azure? | **Yes** |
 | Subscription / Resource group | Lab subscription / `rg-mh-user01` |
 | Location | Sweden Central |
@@ -466,7 +464,7 @@ Select **Next: Connect to source SQL Server**.
 ### 4.3 Connect to source SQL Server
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Source server name | **The source VM's private IP** (e.g. `10.0.1.4`) — **not** the hostname. See the resolution note below; the IP varies per deployment. |
 | Authentication type | SQL Authentication (the migration login from **Prerequisites → Source SQL Server permissions**) |
 | User name | The migration login (e.g. `sqlmigration`) with `db_owner` on the source database |
@@ -499,7 +497,6 @@ Select **Next: Connect to source SQL Server**.
 > non-default port (e.g. `10.0.1.4,1433`). Because the connection rides TCP/IP (not shared memory),
 > make sure the **TCP/IP protocol is enabled** for the instance (SQL Server Configuration Manager →
 > *SQL Server Network Configuration*) and that it is **listening on 1433**.
-
 > **Troubleshooting — `Failed to test connections using provided Integration Runtime`.** When you
 > select **Next**, DMS uses the SHIR to open a test connection to `master`. Two common failures:
 >
@@ -537,7 +534,7 @@ Connect to the **pre-created** target logical server (see **Prerequisites → Cr
 SQL Database**). DMS uses **SQL authentication** here.
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Subscription / Resource group | Lab subscription / `rg-mh-user01` |
 | Target Azure SQL Database Server | `mhu01-sqlsrv-<suffix>` |
 | Target server name | `mhu01-sqlsrv-<suffix>.database.windows.net` |
@@ -609,7 +606,7 @@ migration**. The wizard returns you to the Database Migration Service dashboard.
 DMS reports the following statuses (per the official tutorial):
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | **Creating** | DMS is starting the migration. |
 | **Preparing for copy** | Disabling autostats, triggers, and indexes on target tables. |
 | **Copying** | Data is being copied source → target. |
@@ -617,18 +614,17 @@ DMS reports the following statuses (per the official tutorial):
 | **Rebuilding indexes** | Rebuilding indexes on target tables. |
 | **Succeeded** | All data copied and indexes rebuilt. |
 
-3. Under **Source name**, select a database to drill into the per-migration detail. The blade
+1. Under **Source name**, select a database to drill into the per-migration detail. The blade
    summarizes the run — **Migration type** (*Schema and data migration*), **Schema migration status**
    (*Completed*), objects collected, script/deployment counts and **Deployment failed count = 0** —
    and lists every table with its **Status**, rows read, rows copied, throughput and copy duration:
 
    ![Migration detail — schema and data migration Succeeded, per-table row counts](../../Images/c2-dms-20-migration-detail.png)
 
-4. When the migration reports **Succeeded**, proceed to Step 6.
+2. When the migration reports **Succeeded**, proceed to Step 6.
 
 > DMS skips tables with **0 rows** in the source — they will not appear in the per-table list
 > even if you selected them in the wizard.
-
 > **Automating at scale?** The same migration can be driven from the CLI with
 > [`az datamigration`](https://learn.microsoft.com/en-us/cli/azure/datamigration) — out of scope for
 > this interactive lab, but useful for repeatable, multi-database runs.
@@ -698,4 +694,3 @@ any that do):
 ---
 
 [Previous Solution](../challenge-01/solution-01.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-03/solution-03.md)
-

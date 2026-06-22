@@ -26,7 +26,7 @@ Both checks also run in CI on every push and PR.
 ## Conventions
 
 | Area | Convention |
-|---|---|
+| --- | --- |
 | PowerShell | Use `[CmdletBinding()]` on all functions; PSScriptAnalyzer-clean |
 | Bicep | One module per resource type; parameters aligned with `deploy.ps1` |
 | Markdown | Max line length 200; no bare HTML |

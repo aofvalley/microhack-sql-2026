@@ -35,7 +35,7 @@ rehost decision — starts from the same documented findings.
 > resources you use in this challenge are pre-provisioned in your resource group `rg-mh-user<NN>`:
 >
 > | Resource | Name | Role in this challenge |
-> |---|---|---|
+> | --- | --- | --- |
 > | Source VM (SQL Server 2019) | `<prefix>u<NN>-srcvm19` (e.g. `mhu01-srcvm19`) | The source instance you assess. Connect through Azure Bastion `<prefix>u<NN>-bastion`. |
 > | Source VM (SQL Server 2025) | `<prefix>u<NN>-srcvm25` (e.g. `mhu01-srcvm25`) | Not used here — it is the MI Link source for Challenge 3. |
 > | Azure Migrate project | `<prefix>u<NN>-migrate` (e.g. `mhu01-migrate`) | Pre-created Azure Migrate project. Register the appliance and run the assessments here. |

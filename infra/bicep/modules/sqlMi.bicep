@@ -57,7 +57,6 @@ resource managedInstance 'Microsoft.Sql/managedInstances@2025-08-01-preview' = {
     minimalTlsVersion: '1.2'
     databaseFormat: 'SQLServer2025'
     zoneRedundant: false
-    databaseFormat: 'SQLServer2025'
   }
 }
 

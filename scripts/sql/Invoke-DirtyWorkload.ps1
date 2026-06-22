@@ -8,6 +8,7 @@
 .EXAMPLE
     .\Invoke-DirtyWorkload.ps1 -TeamPrefix TEAM01 -SqlInstance sqlhack-team-01
 #>
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Interactive lab helper prints progress to the console.')]
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]

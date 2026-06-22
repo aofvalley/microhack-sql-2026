@@ -5,6 +5,9 @@
     Logs to C:\Lab\jumpbox-tools.log on the target VM.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Custom Script Extension writes progress to console and log.')]
+param()
+
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
 

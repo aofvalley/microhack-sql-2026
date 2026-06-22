@@ -3,10 +3,10 @@
 [Previous Solution](../challenge-03/solution-03.md) - **[Home](../../Readme.md)** - [Next Solution](../challenge-05/solution-05.md)
 
 > **Lab scenario:** Users report that the migrated CRM workload is slow after recent stored procedure changes. You will create monitoring signal, find the highest CPU consumers, inspect portal metrics and Log Analytics records, then apply Query Store and tuning features to validate the fix.
-
 > **Timing:** Allow 45–60 minutes for Steps 1–7. If your facilitator pre-deployed diagnostic settings during the initial deployment, verify they are configured in Step 1 and proceed to Step 2.
 
 ## Step 0 — Establish admin
+
 First of all we need to define the administator of the managed instance. Select you own user here, as the administrador of the Managed Instance:
 
 ![SQL MI diagnostic settings blade](../../Images/c4-step-0-set-admin.png)
@@ -18,7 +18,6 @@ If the SQL Managed instance does not contain a database named AdventureWorks2019
 Follow the wizard and restore the dacpac file into the Managed Instance:
 
 ![Import dacpac2](../../Images/c4-step-0-dacpac2.png)
-
 
 ## Step 1 — Enable diagnostic settings on SQL MI
 
@@ -188,6 +187,7 @@ WHERE wait_type NOT LIKE '%SLEEP%'
   AND wait_type <> 'WAITFOR'
 ORDER BY wait_time_ms DESC;
 ```
+
 ![Wait times](../../Images/c4-step-10-wait-times.png)
 
 **Understanding the screenshot results:**
@@ -216,8 +216,7 @@ The screenshot shows SQL MI's accumulated wait statistics since the last restart
 
 - **LCK_M_** → Lock waits from blocking
 
-
-For active requests, use this companion query. 
+For active requests, use this companion query.
 Execute again the initial synthetic load and then run the following query in a new window to see how the active queries are being hapenning and the type of waiting they have.
 
 ```sql
@@ -263,7 +262,6 @@ Open **Monitoring** → **Metrics**. Set scope to `sqlmi-microhack-2026`, metric
 
 ![Metrics blade CPU and IO](../../Images/c4-step4-SQLMI-Monitoring-Metrics.png)
 
-
 In **Logs** tab, in the right top corner try the new **Observability agent**, a temporary chat that can assist you analyze the metrics and logs.
 To start you can click to Key metric overview to check the suggested analysis:
 
@@ -274,7 +272,6 @@ To start you can click to Key metric overview to check the suggested analysis:
 The agent has access to the same metrics, diagnostic logs, and resource health signals you just opened in the portal. Use it to **shortcut the manual KQL and DMV work** of Steps 3, 5 and 6 — then validate its answers against the queries you ran yourself. Ask the questions below in order; each one builds on the previous answer the same way a real incident investigation does.
 
 > **Tip:** Keep each prompt **short and single-focus**. The agent is slow on compound questions ("when, how long, and peak…") because it runs a separate KQL query per intent. One question = one signal = a fast answer. Ask in order; each builds on the previous.
-
 > **Tip:** The agent is a *temporary* chat — copy answers you want to keep before closing the blade.
 
 1. **"Show CPU usage for the last hour."**
@@ -295,7 +292,7 @@ The agent has access to the same metrics, diagnostic logs, and resource health s
 6. **"Give me a KQL query to chart CPU per database for the last 6 hours."**
    - *Why ask:* Turns the agent into a launchpad for Step 5 — leaves you with a ready-to-paste KQL query instead of writing one from scratch.
 
-> **Lab discipline:** Always cross-check the agent's answers against the DMV results from Step 3 and the Query Store reports from Step 6. 
+> **Lab discipline:** Always cross-check the agent's answers against the DMV results from Step 3 and the Query Store reports from Step 6.
 
 ## Step 5 — Query Log Analytics with KQL
 
@@ -350,7 +347,6 @@ AzureDiagnostics
 
 > **Tip:** The `QueryStoreRuntimeStatistics` fields `duration_d`, `cpu_time_d`, etc. store values in **microseconds**. Divide by 1,000 to convert to milliseconds. Use `getschema` (see the Tip above) to discover the exact column names in your workspace.
 
-
 ### Query 3 — Query Store wait stats trend
 
 This query trends waits by category so you can distinguish CPU, IO, lock, memory, and log pressure over time.
@@ -370,6 +366,7 @@ AzureDiagnostics
 ![KQL wait stats trend chart](../../Images/c4-step4-SQLMI-WaitStats-Chart.png)
 
 ## Step 6 — Use Query Store for regression analysis
+
 Query Store is supported on Azure SQL Managed Instance and is the best built-in feature for query regression analysis because it persists query text, runtime statistics, waits, and plans over time.
 
 Query Store is **enabled by default** on Azure SQL MI for newly created and migrated databases. Verify and adjust the configuration for the lab:
@@ -540,7 +537,6 @@ The previous query returns both queries and the execution plans associated, as w
 
 ![SSMS Query Store highest consumption](../../Images/c4-step-13-query-store-queries-highest-consumption.png)
 
-
 In the following figure we can see how the current query (in our case, query 3) presents the two execution plans. For this, we need to open the Top Resouce Consuming Queries in the Query Store folder.
 
 Plan 4 presents worse times, as it is the one without the index. From this screen, navigate to the plans and explore the differences:
@@ -553,7 +549,7 @@ Compare the previous plan and current plan. If a known good plan is available, f
 
 ## Step 7 — Configure Automatic Tuning + alerts
 
-Automatic tuning can help stabilize workloads by automatically correcting plan regressions. On Azure SQL Managed Instance, the only supported automatic tuning option is **`FORCE_LAST_GOOD_PLAN`** (automatic plan correction). 
+Automatic tuning can help stabilize workloads by automatically correcting plan regressions. On Azure SQL Managed Instance, the only supported automatic tuning option is **`FORCE_LAST_GOOD_PLAN`** (automatic plan correction).
 
 Enable automatic plan correction using T-SQL:
 
@@ -571,10 +567,9 @@ Next, create an Azure Monitor alert. Open **Monitoring** → **Alerts** → **Cr
 
 ![Create alert rule condition](../../Images/c4-step-17-create-alert-rule.png)
 
-Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator. 
+Create or select an action group named `ag-microhack-sql-ops`. Add an email receiver for the lab operator.
 
 ![Alert action group email teams](../../Images/c4-step-16-create-action-group.png)
-
 
 ---
 
